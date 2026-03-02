@@ -1,0 +1,160 @@
+import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
+import { Buffer } from 'buffer';
+
+export type AuthSession = {
+  accessToken: string;
+  refreshToken: string;
+};
+
+type SessionListener = (session: AuthSession | null) => void | Promise<void>;
+type RetryableRequestConfig = InternalAxiosRequestConfig & { _retry?: boolean };
+type TokenClaims = {
+  sellerId?: unknown;
+  roles?: unknown;
+};
+
+const SELLER_ROLES = new Set([
+  'SELLER',
+  'WITHOUT_APPROVAL_SELLER',
+  'SELLER_EMPLOYEE',
+  'SELLER_MARKETING_MANAGER',
+  'SELLER_FINANCE_MANAGER',
+]);
+
+export const SELLER_ONLY_ERROR_MESSAGE = 'Bu uygulamaya sadece satıcı hesabı ile giriş yapılabilir.';
+
+let authSession: AuthSession | null = null;
+let sessionListener: SessionListener | undefined;
+let refreshPromise: Promise<string | null> | null = null;
+
+const baseURL = process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://192.168.1.181:8080/v1/api';
+export const API_BASE_URL = baseURL;
+
+export const api = axios.create({
+  baseURL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+const refreshClient = axios.create({
+  baseURL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+export async function setAuthSession(session: AuthSession | null) {
+  authSession = session;
+  if (sessionListener) {
+    await sessionListener(session);
+  }
+}
+
+export function setAuthSessionListener(listener?: SessionListener) {
+  sessionListener = listener;
+}
+
+function parseJwtClaims(token: string): TokenClaims | null {
+  const parts = token.split('.');
+  if (parts.length < 2) {
+    return null;
+  }
+
+  try {
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+    const json = Buffer.from(padded, 'base64').toString('utf8');
+    const parsed = JSON.parse(json);
+    if (!parsed || typeof parsed !== 'object') {
+      return null;
+    }
+    return parsed as TokenClaims;
+  } catch {
+    return null;
+  }
+}
+
+export function isSellerAccessToken(accessToken: string): boolean {
+  const claims = parseJwtClaims(accessToken);
+  if (!claims) {
+    return false;
+  }
+
+  if (claims.sellerId != null) {
+    return true;
+  }
+
+  const rolesRaw = claims.roles;
+  if (!Array.isArray(rolesRaw)) {
+    return false;
+  }
+
+  return rolesRaw.some((role) => typeof role === 'string' && SELLER_ROLES.has(role));
+}
+
+async function refreshAccessToken(): Promise<string | null> {
+  const refreshToken = authSession?.refreshToken;
+  if (!refreshToken) {
+    return null;
+  }
+
+  if (!refreshPromise) {
+    refreshPromise = refreshClient
+      .post<AuthSession>('/auth/refresh', { refreshToken })
+      .then(async (response) => {
+        const nextAccessToken = response.data?.accessToken?.trim();
+        const nextRefreshToken = response.data?.refreshToken?.trim();
+        if (!nextAccessToken || !nextRefreshToken) {
+          throw new Error('Refresh response does not include accessToken and refreshToken');
+        }
+        if (!isSellerAccessToken(nextAccessToken)) {
+          throw new Error(SELLER_ONLY_ERROR_MESSAGE);
+        }
+        await setAuthSession({ accessToken: nextAccessToken, refreshToken: nextRefreshToken });
+        return nextAccessToken;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+
+  return refreshPromise;
+}
+
+api.interceptors.request.use((config) => {
+  if (!authSession?.accessToken) {
+    return config;
+  }
+  config.headers = config.headers ?? {};
+  (config.headers as Record<string, string>).Authorization = `Bearer ${authSession.accessToken}`;
+  return config;
+});
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error: AxiosError) => {
+    const status = error.response?.status;
+    const config = error.config as RetryableRequestConfig | undefined;
+
+    if (!config || status !== 401 || config._retry || config.url?.includes('/auth/refresh')) {
+      throw error;
+    }
+
+    config._retry = true;
+
+    try {
+      const nextAccessToken = await refreshAccessToken();
+      if (!nextAccessToken) {
+        await setAuthSession(null);
+        throw error;
+      }
+      config.headers = config.headers ?? {};
+      (config.headers as Record<string, string>).Authorization = `Bearer ${nextAccessToken}`;
+      return api.request(config);
+    } catch {
+      await setAuthSession(null);
+      throw error;
+    }
+  }
+);
