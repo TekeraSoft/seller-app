@@ -1,9 +1,10 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { AppText } from '@/components/app-text';
 
 export default function PlaceholderScreen() {
   return (
     <View style={styles.container}>
-      <Text style={styles.text}>Bu sayfa hazırlanıyor.</Text>
+      <AppText style={styles.text}>Bu sayfa hazırlanıyor.</AppText>
     </View>
   );
 }

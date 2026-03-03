@@ -1,66 +1,119 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AppText } from '@/components/app-text';
 import { Fonts } from '@/constants/theme';
+import { useAppSelector } from '@/store/hooks';
 
 export default function HomeScreen() {
+  const router = useRouter();
+  const {
+    report: {
+      followerCount,
+      totalOrders,
+      totalProducts,
+      recentOrders,
+      currentMonthSales,
+      monthlyTarget,
+      progressPercent,
+    },
+    isLoading,
+  } = useAppSelector((state) => state.seller);
+
+  const formatCount = (value: number) => value.toLocaleString('tr-TR');
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 2 }).format(value);
+  const formatDate = (value: string | null) => {
+    if (!value) return '-';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '-';
+    return new Intl.DateTimeFormat('tr-TR', { dateStyle: 'short', timeStyle: 'short' }).format(date);
+  };
+  const clampedProgress = Math.max(0, Math.min(100, progressPercent));
+  const remainingPercent = Math.max(0, 100 - clampedProgress);
+
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-        <View style={styles.headerRow}>
-          <View style={styles.userBlock}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>BW</Text>
-            </View>
-            <View>
-              <Text style={styles.greeting}>Good Morning</Text>
-              <Text style={styles.userName}>Bruce Wayne</Text>
-            </View>
-          </View>
-
-          <View style={styles.headerActions}>
-            <Pressable style={styles.iconButton}>
-              <Ionicons name="search" size={16} color="#1E1E1E" />
-            </Pressable>
-            <Pressable style={styles.iconButton}>
-              <Ionicons name="settings-outline" size={16} color="#1E1E1E" />
-            </Pressable>
-          </View>
-        </View>
-
-        <View style={styles.metricsGrid}>
-          <MetricCard title="Total Sales" value="3,700" hint="Last week: 3,457" delta="↑ 7%" />
-          <MetricCard title="Total Customers" value="2,400" hint="Last week: 2,243" delta="↑ 7%" />
-          <MetricCard title="Total Revenue" value="$7,600" hint="Last week: 8,000" delta="↓ 5%" negative />
-          <MetricCard title="Total Sales" value="268" hint="Last week: 233" delta="↑ 15%" />
+    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
+      <ScrollView style={[styles.screen,{paddingTop:12}]} contentContainerStyle={styles.content}>
+        <View style={[styles.metricsGrid,]}>
+          <MetricCard
+            title="Takipçi Sayısı"
+            value={isLoading ? '...' : formatCount(followerCount)}
+          />
+          <MetricCard
+            title="Toplam Ürün"
+            value={isLoading ? '...' : formatCount(totalProducts)}
+          />
+          <MetricCard
+            title="Toplam Sipariş"
+            value={isLoading ? '...' : formatCount(totalOrders)}
+          />
         </View>
 
         <View style={styles.overviewCard}>
           <View style={styles.overviewHead}>
-            <Text style={styles.overviewTitle}>Sales Overview</Text>
-            <Pressable style={styles.arrowButton}>
+            <AppText style={styles.overviewTitle}>Satış Özeti</AppText>
+            <Pressable style={styles.arrowButton} onPress={() => router.push('/(tabs)/profile')}>
               <Ionicons name="arrow-forward" size={14} color="#333" />
             </Pressable>
           </View>
 
           <View style={styles.chartWrap}>
             <View style={styles.simpleScoreWrap}>
-              <Text style={styles.simpleScorePercent}>75%</Text>
-              <Text style={styles.simpleScoreSub}>Sales Growth</Text>
+              <AppText style={styles.simpleScorePercent}>
+                {isLoading ? '...' : `${Math.round(clampedProgress)}%`}
+              </AppText>
+              <AppText style={styles.simpleScoreSub}>Aylık Hedef İlerlemesi</AppText>
             </View>
 
             <View style={styles.goalRow}>
               <Ionicons name="information-circle-outline" size={12} color="#B1B1B8" />
-              <Text style={styles.goalText}>You're 12% away from your monthly sales goal!</Text>
+              <AppText style={styles.goalText}>
+                {isLoading
+                  ? 'Hesaplanıyor...'
+                  : `%${remainingPercent.toFixed(0)} kaldı | Satış: ${formatCurrency(
+                      currentMonthSales
+                    )} / Hedef: ${formatCurrency(monthlyTarget)}`}
+              </AppText>
             </View>
           </View>
+        </View>
 
-          <View style={styles.legendRow}>
-            <Legend color="#5E4BCE" label="Net Profit" />
-            <Legend color="#8D73FF" label="Gross Revenue" />
-            <Legend color="#DCDCE2" label="Target" />
+        <View style={styles.ordersCard}>
+          <View style={styles.ordersHead}>
+            <AppText style={styles.ordersTitle}>Son Siparişler</AppText>
+            <AppText style={styles.ordersBadge}>{recentOrders.length}</AppText>
           </View>
+
+          {recentOrders.length === 0 ? (
+            <AppText style={styles.emptyOrdersText}>
+              {isLoading ? 'Yükleniyor...' : 'Henüz sipariş bulunamadı.'}
+            </AppText>
+          ) : (
+            <View style={styles.ordersList}>
+              {recentOrders.slice(0, 8).map((order) => (
+                <View key={order.id} style={styles.orderRow}>
+                  <View style={styles.orderImageWrap}>
+                    {order.productImage ? (
+                      <Image source={{ uri: order.productImage }} style={styles.orderImage} resizeMode="cover" />
+                    ) : (
+                      <Ionicons name="image-outline" size={14} color="#A2A2AB" />
+                    )}
+                  </View>
+                  <View style={styles.orderMain}>
+                    <AppText style={styles.orderNo}>#{order.orderNumber}</AppText>
+                    <AppText style={styles.orderBuyer}>{order.buyerFullName}</AppText>
+                  </View>
+                  <View style={styles.orderMeta}>
+                    <AppText style={styles.orderAmount}>{formatCurrency(order.totalPrice)}</AppText>
+                    <AppText style={styles.orderDate}>{formatDate(order.createdAt)}</AppText>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -70,27 +123,17 @@ export default function HomeScreen() {
 function MetricCard({
   title,
   value,
-  hint,
-  delta,
-  negative,
 }: {
   title: string;
   value: string;
-  hint: string;
-  delta: string;
-  negative?: boolean;
 }) {
   return (
     <View style={styles.metricCard}>
       <View style={styles.metricHead}>
-        <Text style={styles.metricTitle}>{title}</Text>
+        <AppText style={styles.metricTitle}>{title}</AppText>
         <Ionicons name="information-circle-outline" size={12} color="#C1C1C7" />
       </View>
-      <Text style={styles.metricValue}>{value}</Text>
-      <View style={styles.metricFoot}>
-        <Text style={styles.metricHint}>{hint}</Text>
-        <Text style={[styles.metricDelta, negative && styles.metricDeltaNegative]}>{delta}</Text>
-      </View>
+      <AppText style={styles.metricValue}>{value}</AppText>
     </View>
   );
 }
@@ -99,7 +142,7 @@ function Legend({ color, label }: { color: string; label: string }) {
   return (
     <View style={styles.legendItem}>
       <View style={[styles.legendDot, { backgroundColor: color }]} />
-      <Text style={styles.legendText}>{label}</Text>
+      <AppText style={styles.legendText}>{label}</AppText>
     </View>
   );
 }
@@ -117,56 +160,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingBottom: 94,
     gap: 10,
-  },
-  headerRow: {
-    marginTop: 6,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  userBlock: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  avatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: '#F0C4A8',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#1F1F1F',
-    fontFamily: Fonts.sans,
-  },
-  greeting: {
-    fontSize: 10,
-    color: '#9A9AA3',
-    fontFamily: Fonts.sans,
-  },
-  userName: {
-    fontSize: 14,
-    color: '#151515',
-    fontWeight: '700',
-    fontFamily: Fonts.rounded,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  iconButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   metricsGrid: {
     flexDirection: 'row',
@@ -297,4 +290,87 @@ const styles = StyleSheet.create({
     color: '#5B5B63',
     fontFamily: Fonts.sans,
   },
+  ordersCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#ECECEF',
+    padding: 12,
+    gap: 8,
+  },
+  ordersHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  ordersTitle: {
+    fontSize: 14,
+    color: '#121212',
+    fontWeight: '700',
+    fontFamily: Fonts.rounded,
+  },
+  ordersBadge: {
+    fontSize: 11,
+    color: '#5E4BCE',
+    fontFamily: Fonts.mono,
+  },
+  emptyOrdersText: {
+    fontSize: 12,
+    color: '#7A7A84',
+    fontFamily: Fonts.sans,
+    paddingVertical: 8,
+  },
+  ordersList: {
+    gap: 8,
+  },
+  orderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F2F2F5',
+  },
+  orderImageWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    backgroundColor: '#F6F6FA',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  orderImage: {
+    width: '100%',
+    height: '100%',
+  },
+  orderMain: {
+    flex: 1,
+    gap: 1,
+  },
+  orderNo: {
+    fontSize: 12,
+    color: '#2B2B30',
+    fontFamily: Fonts.mono,
+  },
+  orderBuyer: {
+    fontSize: 12,
+    color: '#66666E',
+    fontFamily: Fonts.sans,
+  },
+  orderMeta: {
+    alignItems: 'flex-end',
+  },
+  orderAmount: {
+    fontSize: 12,
+    color: '#151515',
+    fontWeight: '700',
+    fontFamily: Fonts.rounded,
+  },
+  orderDate: {
+    fontSize: 10,
+    color: '#8E8E97',
+    fontFamily: Fonts.sans,
+  },
 });
+

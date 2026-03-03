@@ -10,7 +10,19 @@ type SessionListener = (session: AuthSession | null) => void | Promise<void>;
 type RetryableRequestConfig = InternalAxiosRequestConfig & { _retry?: boolean };
 type TokenClaims = {
   sellerId?: unknown;
+  basicId?: unknown;
+  basic_id?: unknown;
+  basicid?: unknown;
+  nameSurname?: unknown;
+  namesurname?: unknown;
+  name_surname?: unknown;
   roles?: unknown;
+};
+
+export type SellerTokenIdentity = {
+  sellerId: string | null;
+  basicId: string | null;
+  nameSurname: string | null;
 };
 
 const SELLER_ROLES = new Set([
@@ -73,6 +85,33 @@ function parseJwtClaims(token: string): TokenClaims | null {
   } catch {
     return null;
   }
+}
+
+function toOptionalString(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+export function getSellerIdentityFromAccessToken(accessToken: string): SellerTokenIdentity {
+  const claims = parseJwtClaims(accessToken);
+  if (!claims) {
+    return { sellerId: null, basicId: null, nameSurname: null };
+  }
+
+  const sellerId = toOptionalString(claims.sellerId);
+  const basicId =
+    toOptionalString(claims.basicId) ??
+    toOptionalString(claims.basic_id) ??
+    toOptionalString(claims.basicid);
+  const nameSurname =
+    toOptionalString(claims.nameSurname) ??
+    toOptionalString(claims.namesurname) ??
+    toOptionalString(claims.name_surname);
+
+  return { sellerId, basicId, nameSurname };
 }
 
 export function isSellerAccessToken(accessToken: string): boolean {

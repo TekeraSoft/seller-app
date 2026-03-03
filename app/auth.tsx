@@ -1,7 +1,7 @@
+import { isAxiosError } from 'axios';
 import { Redirect } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { isAxiosError } from 'axios';
 
 import { useAuth } from '@/context/auth-context';
 import { API_BASE_URL, api } from '@/lib/api';
@@ -26,7 +26,7 @@ export default function AuthScreen() {
   }
 
   if (isAuthenticated) {
-    return <Redirect href="/(tabs)" />;
+    return <Redirect href="/(tabs)/index" />;
   }
 
   async function onLogin() {
@@ -87,7 +87,7 @@ export default function AuthScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Tekera21</Text>
-      <Text style={styles.subtitle}>Hesabına giriş yap</Text>
+      <Text style={styles.subtitle}>Satıcı hesabına giriş yap</Text>
 
       <TextInput
         autoCapitalize="none"
@@ -125,11 +125,13 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   title: {
+    textAlign: 'center',
     fontSize: 32,
     fontWeight: '700',
     color: '#111111',
   },
   subtitle: {
+    textAlign: 'center',
     color: '#444444',
     marginBottom: 8,
   },
