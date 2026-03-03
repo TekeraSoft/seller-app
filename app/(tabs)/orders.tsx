@@ -1,7 +1,7 @@
 ﻿import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -42,6 +42,7 @@ const STATUS_FILTERS: Array<{ label: string; value: string | null; countKey: key
 export default function OrdersScreen() {
   const dispatch = useAppDispatch();
   const router = useRouter();
+  const didAutoLoadOnFocusRef = useRef(false);
   const { items, isLoading, isRefreshing, isLoadingMore, page, size, hasMore, error, filters, counters } =
     useAppSelector((state) => state.orders);
 
@@ -72,6 +73,9 @@ export default function OrdersScreen() {
 
   const loadFirstPage = useCallback(
     (refresh = false) => {
+      if (refresh) {
+        didAutoLoadOnFocusRef.current = true;
+      }
       dispatch(fetchSellerOrdersPage({ page: 0, size, refresh, filters: buildRequestFilters() }));
     },
     [buildRequestFilters, dispatch, size]
@@ -91,10 +95,17 @@ export default function OrdersScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (items.length === 0 && !isLoading) {
+      if (
+        !didAutoLoadOnFocusRef.current &&
+        items.length === 0 &&
+        !isLoading &&
+        !isRefreshing &&
+        !isLoadingMore
+      ) {
+        didAutoLoadOnFocusRef.current = true;
         loadFirstPage(false);
       }
-    }, [isLoading, items.length, loadFirstPage])
+    }, [isLoading, isLoadingMore, isRefreshing, items.length, loadFirstPage])
   );
 
   const renderItem = ({ item }: { item: SellerOrder }) => (

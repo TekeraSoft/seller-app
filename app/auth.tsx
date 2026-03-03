@@ -26,7 +26,7 @@ export default function AuthScreen() {
   }
 
   if (isAuthenticated) {
-    return <Redirect href="/(tabs)/index" />;
+    return <Redirect href="/orders" />;
   }
 
   async function onLogin() {

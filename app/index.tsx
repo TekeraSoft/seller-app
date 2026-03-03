@@ -7,5 +7,5 @@ export default function RootIndex() {
 
   if (isLoading) return null;
 
-  return <Redirect href={isAuthenticated ? '/(tabs)/index' : '/auth'} />;
+  return <Redirect href={isAuthenticated ? '/orders' : '/auth'} />;
 }
