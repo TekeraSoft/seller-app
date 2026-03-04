@@ -1,7 +1,11 @@
 export type SellerInfoResponse = {
   id?: string;
+  basicId?: string;
+  basic_id?: string;
+  basicid?: string;
   name?: string;
   logo?: string;
+  [key: string]: unknown;
 };
 
 export type SellerReportResponse = {

@@ -22,6 +22,12 @@ export default function SettingsScreen() {
           Ayarlar
         </AppText>
 
+        <Pressable style={styles.profileButton} onPress={() => router.push('/seller-profile')}>
+          <AppText style={styles.profileText} tone="rounded">
+            Satıcı Profili
+          </AppText>
+        </Pressable>
+
         <Pressable style={styles.logoutButton} onPress={handleSignOut}>
           <AppText style={styles.logoutText} tone="rounded">
             Çıkış Yap
@@ -50,12 +56,27 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.rounded,
   },
   logoutButton: {
-    marginTop: 8,
     height: 48,
     borderRadius: 12,
     backgroundColor: '#E53935',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  profileButton: {
+    marginTop: 8,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderColor: '#D7D0FF',
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileText: {
+    color: '#5E4BCE',
+    fontSize: 15,
+    fontWeight: '700',
+    fontFamily: Fonts.rounded,
   },
   logoutText: {
     color: '#FFFFFF',

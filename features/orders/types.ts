@@ -28,6 +28,35 @@ export type SellerOrderFilterResponse = {
   };
 };
 
+export type PageResponse<T> = {
+  content?: T[];
+  totalElements?: number;
+  totalPages?: number;
+  size?: number;
+  number?: number;
+  first?: boolean;
+  last?: boolean;
+};
+
+export type SellerReturnLine = {
+  quantity?: number;
+  refundAmount?: number | string;
+  basketItem?: {
+    id?: string;
+    name?: string;
+    image?: string | null;
+  };
+};
+
+export type SellerReturn = {
+  id?: string;
+  lines?: SellerReturnLine[];
+  reason?: string | null;
+  images?: string[] | null;
+  status?: string | null;
+  returnShipmentStatus?: string | null;
+};
+
 export type SellerOrderResponse = {
   id?: string;
   orderNo?: string;

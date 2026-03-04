@@ -158,7 +158,7 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 14,
-    paddingBottom: 94,
+    paddingBottom: 120,
     gap: 10,
   },
   metricsGrid: {

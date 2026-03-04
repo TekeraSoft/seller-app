@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useState } from 'react';
 
+import { deactivateDeviceToken } from '@/features/notifications/api';
+import { registerCurrentDeviceForPush } from '@/features/notifications/push';
 import {
   AuthSession,
   isSellerAccessToken,
@@ -10,6 +12,7 @@ import {
 } from '@/lib/api';
 
 const AUTH_SESSION_KEY = 'auth_session';
+const PUSH_DEVICE_TOKEN_KEY = 'push_device_token';
 
 type AuthContextValue = {
   session: AuthSession | null;
@@ -73,6 +76,16 @@ export function AuthProvider({ children }: PropsWithChildren) {
         await AsyncStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(nextSession));
         return;
       }
+      const existingToken = await AsyncStorage.getItem(PUSH_DEVICE_TOKEN_KEY);
+      if (existingToken) {
+        try {
+          await deactivateDeviceToken(existingToken);
+        } catch (error) {
+          console.warn('[Auth] Push device deactivation failed while clearing session.', error);
+        } finally {
+          await AsyncStorage.removeItem(PUSH_DEVICE_TOKEN_KEY);
+        }
+      }
       await AsyncStorage.removeItem(AUTH_SESSION_KEY);
     });
 
@@ -80,6 +93,32 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setAuthSessionListener(undefined);
     };
   }, []);
+
+  useEffect(() => {
+    if (!session?.accessToken) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function registerPushDevice() {
+      try {
+        const token = await registerCurrentDeviceForPush();
+        if (!token || cancelled) return;
+        await AsyncStorage.setItem(PUSH_DEVICE_TOKEN_KEY, token);
+      } catch (error) {
+        console.warn('[Auth] Push device registration failed.', error);
+      }
+    }
+
+    registerPushDevice().catch((error) => {
+      console.warn('[Auth] Unexpected push registration error.', error);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.accessToken]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -94,6 +133,15 @@ export function AuthProvider({ children }: PropsWithChildren) {
         await setAuthSession(nextSession);
       },
       signOut: async () => {
+        try {
+          const existingToken = await AsyncStorage.getItem(PUSH_DEVICE_TOKEN_KEY);
+          if (existingToken) {
+            await deactivateDeviceToken(existingToken);
+            await AsyncStorage.removeItem(PUSH_DEVICE_TOKEN_KEY);
+          }
+        } catch (error) {
+          console.warn('[Auth] Push device deactivation failed on sign-out.', error);
+        }
         await setAuthSession(null);
       },
     }),

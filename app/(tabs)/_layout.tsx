@@ -1,13 +1,15 @@
 ﻿import { Ionicons } from '@expo/vector-icons';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { useFocusEffect } from '@react-navigation/native';
 import { Redirect, Tabs, useRouter } from 'expo-router';
-import React from 'react';
+import { useCallback, useState } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { Fonts } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
+import { fetchUnreadNotificationCount } from '@/features/notifications/api';
 import { useAppSelector } from '@/store/hooks';
 
 const ICON_BY_ROUTE: Record<string, keyof typeof Ionicons.glyphMap> = {
@@ -60,7 +62,7 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
             onLongPress={onLongPress}
             style={styles.tabButton}>
             <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
-              <Ionicons name={iconName} size={28} color={focused ?  '#8D73FF':'#FFFFFF'} />
+              <Ionicons name={iconName} size={28} color={focused ? '#8D73FF' : '#FFFFFF'} />
             </View>
           </Pressable>
         );
@@ -74,6 +76,22 @@ function SellerHeader() {
     profile: { basicId, logo: sellerLogo, name: sellerName },
   } = useAppSelector((state) => state.seller);
   const router = useRouter();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const loadUnreadCount = useCallback(async () => {
+    try {
+      const count = await fetchUnreadNotificationCount();
+      setUnreadCount(count);
+    } catch {
+      setUnreadCount(0);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadUnreadCount();
+    }, [loadUnreadCount])
+  );
 
   const initials = sellerName
     .split(' ')
@@ -96,13 +114,22 @@ function SellerHeader() {
           <AppText style={styles.userName} tone="rounded">
             {sellerName}
           </AppText>
-          {basicId ? <AppText style={styles.sellerId} tone="mono">Basic ID: {basicId}</AppText> : null}
+          {basicId ? (
+            <AppText style={styles.sellerId} tone="mono">
+              Basic ID: {basicId}
+            </AppText>
+          ) : null}
         </View>
       </View>
 
       <View style={styles.headerActions}>
-        <Pressable >
-          <Ionicons name="search" size={24} color="#1E1E1E" />
+        <Pressable onPress={() => router.push('/notifications')} style={styles.notificationButton}>
+          <Ionicons name="notifications-outline" size={24} color="#1E1E1E" />
+          {unreadCount > 0 ? (
+            <View style={styles.unreadBadge}>
+              <AppText style={styles.unreadBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</AppText>
+            </View>
+          ) : null}
         </Pressable>
         <Pressable onPress={() => router.push('/settings')}>
           <Ionicons name="settings-outline" size={24} color="#1E1E1E" />
@@ -231,6 +258,26 @@ const styles = StyleSheet.create({
   headerActions: {
     flexDirection: 'row',
     gap: 18,
-  }
+  },
+  notificationButton: {
+    position: 'relative',
+  },
+  unreadBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -5,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 999,
+    backgroundColor: '#D7263D',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  unreadBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontFamily: Fonts.sans,
+    fontWeight: '700',
+  },
 });
-
