@@ -29,7 +29,11 @@ export const hydrateSellerDashboard = createAsyncThunk<
   if (info) {
     profile = {
       id: toOptionalNonEmptyString(info.id) ?? profile.id,
-      basicId: profile.basicId,
+      basicId:
+        toOptionalNonEmptyString(info.basicId) ??
+        toOptionalNonEmptyString(info.basic_id) ??
+        toOptionalNonEmptyString(info.basicid) ??
+        profile.basicId,
       name: toOptionalNonEmptyString(info.name) ?? profile.name,
       logo: toOptionalNonEmptyString(info.logo)
         ? resolveSellerLogoUrl(info.logo as string)

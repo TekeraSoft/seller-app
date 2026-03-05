@@ -19,6 +19,11 @@ import {
   markNotificationAsRead,
   NotificationItem,
 } from '@/features/notifications/api';
+import {
+  getLocalNotifications,
+  markAllLocalNotificationsAsRead,
+  markLocalNotificationAsRead,
+} from '@/features/notifications/local-notifications';
 import { findSellerOrderIdByOrderNo } from '@/features/orders/api';
 
 function formatDate(value: string | null | undefined): string {
@@ -52,8 +57,20 @@ export default function NotificationsScreen() {
       setError(null);
 
       try {
-        const response = await fetchNotifications({ page: nextPage, size });
-        const incoming = Array.isArray(response.content) ? response.content : [];
+        const [response, localItems] = await Promise.all([
+          fetchNotifications({ page: nextPage, size }),
+          nextPage === 0 ? getLocalNotifications() : Promise.resolve([]),
+        ]);
+        const incomingRemote = Array.isArray(response.content) ? response.content : [];
+        const incoming =
+          nextPage === 0
+            ? [...localItems, ...incomingRemote].sort((a, b) => {
+                const ta = new Date(a.createdAt || a.sentAt || '').getTime();
+                const tb = new Date(b.createdAt || b.sentAt || '').getTime();
+                return tb - ta;
+              })
+            : incomingRemote;
+
         setItems((prev) => (nextPage === 0 ? incoming : [...prev, ...incoming]));
         setPage(nextPage);
         const totalPages = Number(response.totalPages ?? 0);
@@ -83,7 +100,11 @@ export default function NotificationsScreen() {
     async (item: NotificationItem) => {
       if (!item.isRead) {
         try {
-          await markNotificationAsRead(item.id);
+          if (item.type === 'LOCAL_TICKET_REPLY') {
+            await markLocalNotificationAsRead(item.id);
+          } else {
+            await markNotificationAsRead(item.id);
+          }
           setItems((prev) => prev.map((n) => (n.id === item.id ? { ...n, isRead: true } : n)));
         } catch {
           // Keep UX flow even if read mark fails.
@@ -91,6 +112,10 @@ export default function NotificationsScreen() {
       }
 
       const deepLink = item.deepLink ?? '';
+      if (deepLink.includes('/messages')) {
+        router.push('/messages');
+        return;
+      }
       const matchedSellerOrderId = deepLink.match(/\/seller\/orders\/([^/]+)/i)?.[1] ?? null;
       if (matchedSellerOrderId) {
         router.push({ pathname: '/order/[id]', params: { id: matchedSellerOrderId } });
@@ -128,7 +153,7 @@ export default function NotificationsScreen() {
   const markAllRead = useCallback(async () => {
     try {
       setIsMarkingAll(true);
-      await markAllNotificationsAsRead();
+      await Promise.all([markAllNotificationsAsRead(), markAllLocalNotificationsAsRead()]);
       setItems((prev) => prev.map((n) => ({ ...n, isRead: true })));
     } finally {
       setIsMarkingAll(false);

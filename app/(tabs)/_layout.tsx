@@ -1,8 +1,9 @@
 ﻿import { Ionicons } from '@expo/vector-icons';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useFocusEffect } from '@react-navigation/native';
-import { Redirect, Tabs, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import * as Notifications from 'expo-notifications';
+import { Redirect, Tabs, usePathname, useRouter } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -10,13 +11,16 @@ import { AppText } from '@/components/app-text';
 import { Fonts } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { fetchUnreadNotificationCount } from '@/features/notifications/api';
+import { addLocalTicketReplyNotification, getLocalUnreadCount } from '@/features/notifications/local-notifications';
+import { fetchSellerTickets } from '@/features/ticketing/api';
+import { TicketingItem } from '@/features/ticketing/types';
 import { useAppSelector } from '@/store/hooks';
 
 const ICON_BY_ROUTE: Record<string, keyof typeof Ionicons.glyphMap> = {
   index: 'grid-outline',
   orders: 'receipt-outline',
   products: 'cube-outline',
-  messages: 'chatbubble-outline',
+  messages: 'chatbubbles-outline',
   profile: 'bar-chart-outline',
 };
 
@@ -71,6 +75,85 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   );
 }
 
+
+function TicketReplyNotificationWatcher() {
+  const pathname = usePathname();
+  const lastSeenByTicketRef = useRef<Record<string, string>>({});
+  const initializedRef = useRef(false);
+
+  useEffect(() => {
+    let isDisposed = false;
+
+    const run = async () => {
+      try {
+        const page = await fetchSellerTickets({ page: 0, size: 20 });
+        if (isDisposed) return;
+
+        const items = Array.isArray(page.content) ? page.content : [];
+        const nextSeen: Record<string, string> = {};
+
+        items.forEach((ticket: TicketingItem) => {
+          const lastMessage = ticket.messages.length > 0 ? ticket.messages[ticket.messages.length - 1] : null;
+          nextSeen[ticket.id] = lastMessage?.createdAt ?? '';
+        });
+
+        if (!initializedRef.current) {
+          lastSeenByTicketRef.current = nextSeen;
+          initializedRef.current = true;
+          return;
+        }
+
+        const isOnMessagesScreen = pathname.includes('/messages');
+        if (!isOnMessagesScreen) {
+          for (const ticket of items) {
+            const lastMessage = ticket.messages.length > 0 ? ticket.messages[ticket.messages.length - 1] : null;
+            const lastCreatedAt = lastMessage?.createdAt ?? '';
+            const prevCreatedAt = lastSeenByTicketRef.current[ticket.id] ?? '';
+            const isSupportReply = (lastMessage?.title ?? '').trim().toLowerCase() === 'high level support';
+
+            if (isSupportReply && lastCreatedAt.length > 0 && prevCreatedAt.length > 0 && lastCreatedAt !== prevCreatedAt) {
+              await addLocalTicketReplyNotification({
+                ticketingId: ticket.id,
+                sellerTitle: ticket.sellerTitle ?? 'Destek',
+                message: lastMessage?.content ?? '',
+                createdAt: lastCreatedAt,
+              });
+
+              await Notifications.scheduleNotificationAsync({
+                content: {
+                  title: 'Destek talebine yeni yanıt',
+                  body: `${ticket.sellerTitle ?? 'Destek'}: ${lastMessage?.content ?? ''}`,
+                  data: {
+                    deepLink: '/messages',
+                    ticketingId: ticket.id,
+                  },
+                },
+                trigger: null,
+              });
+            }
+          }
+        }
+
+        lastSeenByTicketRef.current = nextSeen;
+      } catch {
+        // Silent: ticket polling should never block UI.
+      }
+    };
+
+    void run();
+    const timer = setInterval(() => {
+      void run();
+    }, 30000);
+
+    return () => {
+      isDisposed = true;
+      clearInterval(timer);
+    };
+  }, [pathname]);
+
+  return null;
+}
+
 function SellerHeader() {
   const {
     profile: { basicId, logo: sellerLogo, name: sellerName },
@@ -80,8 +163,11 @@ function SellerHeader() {
 
   const loadUnreadCount = useCallback(async () => {
     try {
-      const count = await fetchUnreadNotificationCount();
-      setUnreadCount(count);
+      const [remoteCount, localCount] = await Promise.all([
+        fetchUnreadNotificationCount(),
+        getLocalUnreadCount(),
+      ]);
+      setUnreadCount(remoteCount + localCount);
     } catch {
       setUnreadCount(0);
     }
@@ -116,7 +202,7 @@ function SellerHeader() {
           </AppText>
           {basicId ? (
             <AppText style={styles.sellerId} tone="mono">
-              Basic ID: {basicId}
+              {basicId}
             </AppText>
           ) : null}
         </View>
@@ -144,12 +230,16 @@ export default function TabLayout() {
 
   if (isLoading) return null;
 
+  if (isLoading)
+
   if (!isAuthenticated) {
     return <Redirect href="/auth" />;
   }
 
   return (
-    <Tabs
+    <>
+      <TicketReplyNotificationWatcher />
+      <Tabs
       tabBar={(props) => <CustomTabBar {...props} />}
       screenOptions={{
         headerShown: true,
@@ -169,8 +259,20 @@ export default function TabLayout() {
           headerTitleAlign: 'left',
         }}
       />
-      <Tabs.Screen name="products" />
-      <Tabs.Screen name="messages" />
+      <Tabs.Screen name="products" 
+      options={{
+          title: 'Raporlar',
+          headerTitle: () => <SellerHeader />,
+          headerTitleAlign: 'left',
+        }}
+      />
+      <Tabs.Screen name="messages" 
+      options={{
+          title: 'Raporlar',
+          headerTitle: () => <SellerHeader />,
+          headerTitleAlign: 'left',
+        }}
+      />
       <Tabs.Screen
         name="profile"
         options={{
@@ -179,7 +281,8 @@ export default function TabLayout() {
           headerTitleAlign: 'left',
         }}
       />
-    </Tabs>
+      </Tabs>
+    </>
   );
 }
 

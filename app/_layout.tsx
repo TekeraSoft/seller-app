@@ -42,6 +42,11 @@ function NotificationRouter() {
         (typeof data?.deep_link === 'string' && data.deep_link) ||
         '';
 
+      if (deepLinkRaw.includes('/messages')) {
+        router.push('/messages');
+        return;
+      }
+
       const matchedSellerOrderId = deepLinkRaw.match(/\/seller\/orders\/([^/]+)/i)?.[1] ?? null;
       if (matchedSellerOrderId) {
         router.push({ pathname: '/order/[id]', params: { id: matchedSellerOrderId } });
