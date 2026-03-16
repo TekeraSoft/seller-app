@@ -7,6 +7,7 @@ import { useEffect, useRef } from 'react';
 import { Provider } from 'react-redux';
 import 'react-native-reanimated';
 
+import { VersionGuard } from '@/components/app-update/version-guard';
 import { SellerBootstrap } from '@/components/bootstrap/seller-bootstrap';
 import { AuthProvider } from '@/context/auth-context';
 import { findSellerOrderIdByOrderNo } from '@/features/orders/api';
@@ -96,6 +97,7 @@ export default function RootLayout() {
     <AuthProvider>
       <Provider store={store}>
         <SellerBootstrap />
+        <VersionGuard />
         <NotificationRouter />
         <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
           <Stack>

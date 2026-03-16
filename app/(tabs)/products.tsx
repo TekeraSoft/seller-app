@@ -29,6 +29,9 @@ type ActivityFilter = 'ALL' | 'ACTIVE' | 'PASSIVE';
 type WarningFilter = 'ALL' | ProductWarningStatus;
 
 const PAGE_SIZE = 20;
+const FILTER_COLLAPSE_DISTANCE = 140;
+const FILTER_COLLAPSE_THRESHOLD = 72;
+const FILTER_EXPAND_THRESHOLD = 16;
 
 const WARNING_OPTIONS: Array<{ label: string; value: WarningFilter }> = [
   { label: 'Stok Uyarısı: Tümü', value: 'ALL' },
@@ -83,16 +86,9 @@ export default function ProductsScreen() {
 
   const [expandedCatalogIds, setExpandedCatalogIds] = useState<Record<string, boolean>>({});
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [areFiltersCollapsed, setAreFiltersCollapsed] = useState(false);
 
-  const scrollY = useRef(new Animated.Value(0)).current;
-  const filtersAnim = scrollY.interpolate({
-    inputRange: [0, 140],
-    outputRange: [1, 0],
-    extrapolate: 'clamp',
-  });
-  const onListScroll = useRef(
-    Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })
-  ).current;
+  const filtersVisibility = useRef(new Animated.Value(1)).current;
 
   const [searchText, setSearchText] = useState('');
   const [brandName, setBrandName] = useState('');
@@ -104,6 +100,30 @@ export default function ProductsScreen() {
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
   const [selectedActivityFilter, setSelectedActivityFilter] = useState<ActivityFilter>('ALL');
   const [selectedWarningFilter, setSelectedWarningFilter] = useState<WarningFilter>('ALL');
+
+  useEffect(() => {
+    Animated.timing(filtersVisibility, {
+      toValue: areFiltersCollapsed ? 0 : 1,
+      duration: 180,
+      useNativeDriver: false,
+    }).start();
+  }, [areFiltersCollapsed, filtersVisibility]);
+
+  const handleListScroll = useCallback(
+    (event: { nativeEvent: { contentOffset: { y: number } } }) => {
+      const offsetY = event.nativeEvent.contentOffset.y;
+
+      if (!areFiltersCollapsed && offsetY > FILTER_COLLAPSE_THRESHOLD) {
+        setAreFiltersCollapsed(true);
+        return;
+      }
+
+      if (areFiltersCollapsed && offsetY <= FILTER_EXPAND_THRESHOLD) {
+        setAreFiltersCollapsed(false);
+      }
+    },
+    [areFiltersCollapsed]
+  );
 
   const buildRequestFilters = useCallback(() => {
     const payload: Record<string, string | boolean> = {};
@@ -364,11 +384,14 @@ export default function ProductsScreen() {
         style={[
           styles.filterAnimatedWrap,
           {
-            opacity: filtersAnim,
-            maxHeight: filtersAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 520] }),
+            opacity: filtersVisibility,
+            maxHeight: filtersVisibility.interpolate({ inputRange: [0, 1], outputRange: [0, 520] }),
             transform: [
               {
-                translateY: filtersAnim.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] }),
+                translateY: filtersVisibility.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [-FILTER_COLLAPSE_DISTANCE * 0.18, 0],
+                }),
               },
             ],
           },
@@ -518,7 +541,7 @@ export default function ProductsScreen() {
 
       <FlatList
         data={items}
-        onScroll={onListScroll}
+        onScroll={handleListScroll}
         scrollEventThrottle={16}
         keyExtractor={(item) => item.catalogId}
         contentContainerStyle={styles.listContent}
