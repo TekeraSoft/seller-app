@@ -5,10 +5,12 @@ import { deactivateDeviceToken } from '@/features/notifications/api';
 import { registerCurrentDeviceForPush } from '@/features/notifications/push';
 import {
   AuthSession,
-  isSellerAccessToken,
-  SELLER_ONLY_ERROR_MESSAGE,
+  getRolesFromToken,
+  getUserTypeFromToken,
+  isValidAppToken,
   setAuthSession,
   setAuthSessionListener,
+  UserType,
 } from '@/lib/api';
 
 const AUTH_SESSION_KEY = 'auth_session';
@@ -19,6 +21,8 @@ type AuthContextValue = {
   token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  userType: UserType;
+  roles: string[];
   signIn: (session: AuthSession) => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -48,7 +52,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
           return;
         }
 
-        if (!isSellerAccessToken(accessToken)) {
+        if (!isValidAppToken(accessToken)) {
           await AsyncStorage.removeItem(AUTH_SESSION_KEY);
           await setAuthSession(null);
           return;
@@ -95,9 +99,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }, []);
 
   useEffect(() => {
-    if (!session?.accessToken) {
-      return;
-    }
+    if (!session?.accessToken) return;
 
     let cancelled = false;
 
@@ -120,15 +122,18 @@ export function AuthProvider({ children }: PropsWithChildren) {
     };
   }, [session?.accessToken]);
 
-  const value = useMemo<AuthContextValue>(
-    () => ({
+  const value = useMemo<AuthContextValue>(() => {
+    const accessToken = session?.accessToken ?? null;
+    return {
       session,
-      token: session?.accessToken ?? null,
+      token: accessToken,
       isLoading,
-      isAuthenticated: Boolean(session?.accessToken),
+      isAuthenticated: Boolean(accessToken),
+      userType: accessToken ? getUserTypeFromToken(accessToken) : 'unknown',
+      roles: accessToken ? getRolesFromToken(accessToken) : [],
       signIn: async (nextSession: AuthSession) => {
-        if (!isSellerAccessToken(nextSession.accessToken)) {
-          throw new Error(SELLER_ONLY_ERROR_MESSAGE);
+        if (!isValidAppToken(nextSession.accessToken)) {
+          throw new Error('Geçersiz hesap türü');
         }
         await setAuthSession(nextSession);
       },
@@ -144,19 +149,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
         }
         await setAuthSession(null);
       },
-    }),
-    [isLoading, session]
-  );
+    };
+  }, [isLoading, session]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
   const context = useContext(AuthContext);
-
-  if (!context) {
-    throw new Error('useAuth must be used inside AuthProvider');
-  }
-
+  if (!context) throw new Error('useAuth must be used inside AuthProvider');
   return context;
 }

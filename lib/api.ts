@@ -33,7 +33,15 @@ const SELLER_ROLES = new Set([
   'SELLER_FINANCE_MANAGER',
 ]);
 
+const INFLUENCER_ROLES = new Set([
+  'CUSTOMER',
+  'WITHOUT_APPROVAL_INFLUENCER',
+  'INFLUENCER',
+]);
+
 export const SELLER_ONLY_ERROR_MESSAGE = 'Bu uygulamaya sadece satıcı hesabı ile giriş yapılabilir.';
+
+export type UserType = 'seller' | 'influencer' | 'unknown';
 
 let authSession: AuthSession | null = null;
 let sessionListener: SessionListener | undefined;
@@ -116,20 +124,37 @@ export function getSellerIdentityFromAccessToken(accessToken: string): SellerTok
 
 export function isSellerAccessToken(accessToken: string): boolean {
   const claims = parseJwtClaims(accessToken);
-  if (!claims) {
-    return false;
-  }
-
-  if (claims.sellerId != null) {
-    return true;
-  }
-
+  if (!claims) return false;
+  if (claims.sellerId != null) return true;
   const rolesRaw = claims.roles;
-  if (!Array.isArray(rolesRaw)) {
-    return false;
-  }
-
+  if (!Array.isArray(rolesRaw)) return false;
   return rolesRaw.some((role) => typeof role === 'string' && SELLER_ROLES.has(role));
+}
+
+export function isInfluencerAccessToken(accessToken: string): boolean {
+  const claims = parseJwtClaims(accessToken);
+  if (!claims) return false;
+  const rolesRaw = claims.roles;
+  if (!Array.isArray(rolesRaw)) return false;
+  return rolesRaw.some((role) => typeof role === 'string' && INFLUENCER_ROLES.has(role));
+}
+
+export function isValidAppToken(accessToken: string): boolean {
+  return isSellerAccessToken(accessToken) || isInfluencerAccessToken(accessToken);
+}
+
+export function getUserTypeFromToken(accessToken: string): UserType {
+  if (isSellerAccessToken(accessToken)) return 'seller';
+  if (isInfluencerAccessToken(accessToken)) return 'influencer';
+  return 'unknown';
+}
+
+export function getRolesFromToken(accessToken: string): string[] {
+  const claims = parseJwtClaims(accessToken);
+  if (!claims) return [];
+  const rolesRaw = claims.roles;
+  if (!Array.isArray(rolesRaw)) return [];
+  return rolesRaw.filter((r): r is string => typeof r === 'string');
 }
 
 async function refreshAccessToken(): Promise<string | null> {

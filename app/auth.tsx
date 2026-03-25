@@ -29,7 +29,7 @@ type AuthResponse = {
 };
 
 export default function AuthScreen() {
-  const { isAuthenticated, isLoading, signIn } = useAuth();
+  const { isAuthenticated, isLoading, signIn, userType } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -40,7 +40,8 @@ export default function AuthScreen() {
   }
 
   if (isAuthenticated) {
-    return <Redirect href="/orders" />;
+    if (userType === 'seller') return <Redirect href="/(tabs)" />;
+    return <Redirect href="/influencer/status" />;
   }
 
   async function onLogin() {
@@ -178,7 +179,7 @@ export default function AuthScreen() {
           {/* Başvuru butonları */}
           <Pressable
             style={({ pressed }) => [styles.outlineButton, pressed && styles.pressed]}
-            onPress={() => router.push('/register' as any)}
+            onPress={() => router.push('/register/influencer' as any)}
           >
             <Text style={styles.outlineButtonText}>✦  İnfluencer Başvuru</Text>
           </Pressable>
