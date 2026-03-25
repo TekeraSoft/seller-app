@@ -1,7 +1,6 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
-import { Stack } from 'expo-router';
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef } from 'react';
 import { Provider } from 'react-redux';
@@ -103,6 +102,7 @@ export default function RootLayout() {
           <Stack>
             <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="auth" options={{ title: 'Giriş', headerShown: false }} />
+            <Stack.Screen name="register/index" options={{ headerShown: false }} />
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="notifications" options={{ title: 'Bildirimler' }} />
             <Stack.Screen name="settings" options={{ title: 'Ayarlar' }} />
