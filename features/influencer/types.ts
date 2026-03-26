@@ -2,6 +2,7 @@ export type InfluencerStatus =
   | 'PENDING_PROFILE_REVIEW'
   | 'PENDING_DOCUMENTS'
   | 'PENDING_DOCUMENT_REVIEW'
+  | 'PENDING_CONTRACT'
   | 'REJECTED'
   | 'ACTIVE';
 
@@ -17,6 +18,12 @@ export type InfluencerDocumentType =
   | 'COMMERCIAL_REGISTER_GAZETTE'
   | 'CERTIFICATE_OF_ACTIVITY'
   | 'AUTHORIZATION_DOCUMENT';
+
+export type InfluencerDocumentStatus = {
+  documentType: InfluencerDocumentType;
+  verificationStatus: 'PENDING' | 'VERIFIED' | 'REJECTED';
+  rejectionNote: string | null;
+};
 
 export type InfluencerDocument = {
   documentType: InfluencerDocumentType;
@@ -42,6 +49,9 @@ export type InfluencerApplication = {
   userId: string | null;
   reviewedAt: string | null;
   createdAt: string | null;
+  iban: string | null;
+  accountHolderName: string | null;
+  bankName: string | null;
 };
 
 export const DOCUMENT_LABELS: Record<InfluencerDocumentType, string> = {
@@ -59,15 +69,11 @@ export const DOCUMENT_LABELS: Record<InfluencerDocumentType, string> = {
 export const SAHIS_DOCUMENTS: InfluencerDocumentType[] = [
   'IDENTITY_DOCUMENT',
   'TAX_CERTIFICATE',
-  'SIGNATURE_DECLARATION',
-  'RESIDENCE_DOCUMENT',
-  'BANK_ACCOUNT_DOCUMENT',
 ];
 
 export const LTD_DOCUMENTS: InfluencerDocumentType[] = [
+  'IDENTITY_DOCUMENT',
   'TAX_CERTIFICATE',
-  'SIGNATURE_CIRCULAR',
   'COMMERCIAL_REGISTER_GAZETTE',
   'CERTIFICATE_OF_ACTIVITY',
-  'BANK_ACCOUNT_DOCUMENT',
 ];

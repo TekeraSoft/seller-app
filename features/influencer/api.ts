@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { api, API_BASE_URL } from '@/lib/api';
-import type { InfluencerApplication, InfluencerCompanyType, InfluencerDocumentType } from './types';
+import type { InfluencerApplication, InfluencerCompanyType, InfluencerDocumentStatus, InfluencerDocumentType } from './types';
 
 type ApiResponse<T> = {
   message?: string;
@@ -34,6 +34,7 @@ export async function registerUser(payload: {
   email: string;
   password: string;
   gender: 'MALE' | 'FEMALE';
+  electronicMessageConsent: boolean;
 }): Promise<AuthTokens> {
   // 1. Hesap oluştur (token dönmez)
   await api.post('/auth/register', {
@@ -43,6 +44,7 @@ export async function registerUser(payload: {
     password: payload.password,
     gender: payload.gender,
     isAcceptAgreement: true,
+    electronicMessageConsent: payload.electronicMessageConsent,
   });
 
   // 2. Oluşturulan hesap ile giriş yap — auth interceptor'sız direkt çağrı
@@ -59,8 +61,6 @@ export async function registerUser(payload: {
 }
 
 export async function applyAsInfluencer(payload: {
-  name: string;
-  surname: string;
   gsmNumber: string;
   companyType: InfluencerCompanyType;
   nationalId?: string;
@@ -74,6 +74,23 @@ export async function getMyApplication(): Promise<InfluencerApplication> {
   const response = await api.get<ApiResponse<InfluencerApplication>>('/influencer/my-application');
   if (!response.data?.data) throw new Error('Başvuru bulunamadı');
   return response.data.data;
+}
+
+export async function updateInfluencerBankInfo(payload: {
+  iban: string;
+  accountHolderName: string;
+  bankName: string;
+}): Promise<void> {
+  await api.put('/influencer/bank-info', payload);
+}
+
+export async function acceptInfluencerContract(): Promise<void> {
+  await api.post('/influencer/accept-contract');
+}
+
+export async function getMyDocuments(): Promise<InfluencerDocumentStatus[]> {
+  const response = await api.get<ApiResponse<InfluencerDocumentStatus[]>>('/influencer/my-documents');
+  return response.data?.data ?? [];
 }
 
 export async function uploadInfluencerDocument(

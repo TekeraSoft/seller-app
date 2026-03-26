@@ -1,3 +1,4 @@
+import { PhoneInput } from '@/components/phone-input';
 import { applyAsInfluencer, registerUser } from '@/features/influencer/api';
 import { useAuth } from '@/context/auth-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,6 +8,7 @@ import { useState, useEffect } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -43,6 +45,9 @@ export default function InfluencerRegisterScreen() {
   }, [isLoading, isAuthenticated]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [kvkkAccepted, setKvkkAccepted] = useState(false);
+  const [kvkkModalVisible, setKvkkModalVisible] = useState(false);
+  const [electronicConsent, setElectronicConsent] = useState(false);
 
   // Adım 1 — Hesap
   const [firstName, setFirstName] = useState('');
@@ -74,11 +79,12 @@ export default function InfluencerRegisterScreen() {
     if (!/(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])/.test(password)) return 'Şifre en az bir büyük harf, küçük harf ve rakam içermelidir.';
     if (password !== passwordConfirm) return 'Şifreler eşleşmiyor.';
     if (!gender) return 'Cinsiyet seçimi zorunludur.';
+    if (!kvkkAccepted) return 'KVKK Açık Rıza Metni\'ni onaylamanız zorunludur.';
     return null;
   }
 
   function validateStep2(): string | null {
-    if (!gsmNumber.trim()) return 'Telefon numarası zorunludur.';
+    if (gsmNumber.length < 10) return 'Geçerli bir telefon numarası girin.';
     if (companyType === 'SAHIS' && !nationalId.trim()) return 'TC Kimlik No zorunludur.';
     if (companyType === 'LTD' && !taxNumber.trim()) return 'Vergi No zorunludur.';
     if (!instagramUrl.trim()) return 'Instagram linki zorunludur.';
@@ -88,11 +94,45 @@ export default function InfluencerRegisterScreen() {
     return null;
   }
 
-  function onNext() {
+  async function onNext() {
     const err = validateStep1();
     if (err) { setError(err); return; }
     setError('');
-    setStep(2);
+
+    // Zaten giriş yapmışsa direkt Step 2'ye geç
+    if (isAuthenticated) {
+      setStep(2);
+      return;
+    }
+
+    // Hesap oluştur ve giriş yap — email zaten varsa hata burada çıkar
+    setLoading(true);
+    try {
+      const tokens = await registerUser({
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: email.trim(),
+        password,
+        gender: gender!,
+        electronicMessageConsent: electronicConsent,
+      });
+      await signIn(tokens);
+      // useEffect isAuthenticated true olunca setStep(2) yapacak
+    } catch (err) {
+      if (isAxiosError(err)) {
+        const raw = (err.response?.data as { message?: string } | undefined)?.message ?? '';
+        const msg = raw.toLowerCase().includes('email') && raw.toLowerCase().includes('use')
+          ? 'Bu e-posta adresi zaten kayıtlı. Lütfen giriş yapın.'
+          : raw || `Hata: HTTP ${err.response?.status}`;
+        setError(msg);
+      } else if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Beklenmeyen bir hata oluştu.');
+      }
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function onSubmit() {
@@ -102,17 +142,6 @@ export default function InfluencerRegisterScreen() {
     setLoading(true);
 
     try {
-      if (!isAuthenticated) {
-        const tokens = await registerUser({
-          firstName: firstName.trim(),
-          lastName: lastName.trim(),
-          email: email.trim(),
-          password,
-          gender: gender!,
-        });
-        await signIn(tokens);
-      }
-
       const socialLinks: Record<string, string> = {};
       if (instagramUrl.trim()) socialLinks['INSTAGRAM'] = instagramUrl.trim();
       if (youtubeUrl.trim()) socialLinks['YOUTUBE'] = youtubeUrl.trim();
@@ -120,9 +149,7 @@ export default function InfluencerRegisterScreen() {
       if (twitterUrl.trim()) socialLinks['TWITTER'] = twitterUrl.trim();
 
       await applyAsInfluencer({
-        name: firstName.trim(),
-        surname: lastName.trim(),
-        gsmNumber: gsmNumber.trim(),
+        gsmNumber: gsmNumber ? `0${gsmNumber}` : '',
         companyType,
         nationalId: companyType === 'SAHIS' ? nationalId.trim() : undefined,
         taxNumber: companyType === 'LTD' ? taxNumber.trim() : undefined,
@@ -147,6 +174,36 @@ export default function InfluencerRegisterScreen() {
   return (
     <SafeAreaView style={styles.root} edges={['bottom']}>
       <Stack.Screen options={{ title: 'İnfluencer Başvuru', headerBackTitle: '' }} />
+
+      {/* KVKK Modal */}
+      <Modal visible={kvkkModalVisible} animationType="slide" transparent onRequestClose={() => setKvkkModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Açık Rıza Metni</Text>
+              <Pressable onPress={() => setKvkkModalVisible(false)} hitSlop={12}>
+                <Ionicons name="close" size={22} color="#5D5677" />
+              </Pressable>
+            </View>
+            <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
+              <Text style={styles.modalSubtitle}>
+                (Tekera21.com – Tekera Teknoloji Ticaret ve Sanayi Limited Şirketi)
+              </Text>
+              <Text style={styles.modalDate}>Son Güncelleme: 09.01.2026</Text>
+              <Text style={styles.modalBody}>
+                {`KVKK Aydınlatma Metni'ni okudum ve anladım.\n\nİşbu Açık Rıza Metni; Tekera Teknoloji Ticaret ve Sanayi Limited Şirketi ("Şirket") tarafından, KVKK kapsamında açık rızaya tabi işleme faaliyetleri için onayınızın alınması amacıyla hazırlanmıştır. Açık rıza vermemeniz halinde, pazarlama/kişiselleştirme ve ticari elektronik iletişim faaliyetlerinden yararlanamayabilirsiniz; ancak platforma üyeliğiniz ve temel hizmetler (sipariş, ödeme, teslimat vb.) devam eder.\n\n1) Pazarlama, Kişiselleştirme ve Profilleme/Segmentasyon Açık Rızası\n\nŞirket tarafından; bana özel kampanya ve tekliflerin sunulması, tercihlerime uygun içeriklerin sağlanması, kullanıcı deneyiminin geliştirilmesi ve bu amaçlarla analiz yapılması kapsamında kişisel verilerimin işlenmesine ve profilleme/segmentasyon yapılmasına AÇIK RIZA veriyorum.\n\nBu kapsamda işlenebilecek veri kategorilerine örnekler:\n• Üyelik ve iletişim bilgileri,\n• Kullanım/davranış verileri (platform içi etkileşimler, kampanya etkileşimleri),\n• Tercih, segmentasyon ve profilleme verileri.\n\n2) Ticari Elektronik İleti (İYS) Açık Rızası\n\nŞirket tarafından tarafıma ticari elektronik ileti gönderilmesine AÇIK RIZA veriyorum. (Onay verdiğim kanallar: e-posta ve/veya SMS) Ticari elektronik ileti izinlerim, mevzuat kapsamında İYS (İleti Yönetim Sistemi) üzerinden yönetilebilir ve doğrulanabilir.\n\n3) Paylaşım / Hizmet Sağlayıcılar\n\nYukarıdaki açık rızalara dayalı faaliyetlerin yürütülmesi amacıyla kişisel verilerim; yalnızca gerekli olması halinde ve amaçla sınırlı olarak, Şirket'in hizmet aldığı tedarikçilerle (örn. e-posta/SMS gönderim altyapısı, CRM/müşteri iletişimi, analiz/ölçümleme hizmetleri) ve mevzuat gereği yetkili kişi/kurumlarla paylaşılabilir. Yurt dışına aktarım söz konusu ise KVKK m.9 çerçevesindeki uygun mekanizmalar uygulanır.\n\n4) Açık Rızanın Geri Alınması\n\nAçık rızamı dilediğim zaman, herhangi bir gerekçe göstermeksizin;\n• Hesap içi "İletişim Tercihleri / Pazarlama İzinleri" bölümünden ve/veya\n• kvkk@tekera21.com adresine yazılı olarak\ngeri alabileceğimi biliyorum. Açık rızanın geri alınması, geri alma öncesindeki işleme faaliyetlerinin hukuka uygunluğunu etkilemez.\n\nİşbu metni okudum, anladım ve seçtiğim izinler kapsamında açık rıza veriyorum.`}
+              </Text>
+              <View style={{ height: 24 }} />
+            </ScrollView>
+            <Pressable
+              style={({ pressed }) => [styles.modalBtn, pressed && { opacity: 0.85 }]}
+              onPress={() => { setKvkkAccepted(true); setKvkkModalVisible(false); }}
+            >
+              <Text style={styles.modalBtnText}>Okudum, Onaylıyorum</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
@@ -212,10 +269,43 @@ export default function InfluencerRegisterScreen() {
                 </View>
               </View>
 
+              {/* KVKK */}
+              <Pressable style={styles.kvkkRow} onPress={() => setKvkkAccepted(v => !v)}>
+                <View style={[styles.checkbox, kvkkAccepted && styles.checkboxChecked]}>
+                  {kvkkAccepted && <Ionicons name="checkmark" size={13} color="#fff" />}
+                </View>
+                <Text style={styles.kvkkText}>
+                  KVKK Aydınlatma Metni'ni okudum ve anladım.{' '}
+                  <Text
+                    style={styles.kvkkLink}
+                    onPress={(e) => { e.stopPropagation(); setKvkkModalVisible(true); }}
+                  >
+                    Açık Rıza Metnini görüntüle
+                  </Text>
+                </Text>
+              </Pressable>
+
+              <Pressable style={styles.kvkkRow} onPress={() => setElectronicConsent(v => !v)}>
+                <View style={[styles.checkbox, electronicConsent && styles.checkboxChecked]}>
+                  {electronicConsent && <Ionicons name="checkmark" size={13} color="#fff" />}
+                </View>
+                <Text style={styles.kvkkText}>
+                  Tarafıma e-posta ve/veya SMS ile ticari elektronik ileti gönderilmesini kabul ediyorum.{' '}
+                  <Text style={styles.optionalBadge}>(İsteğe bağlı)</Text>
+                </Text>
+              </Pressable>
+
               {!!error && <ErrorBox message={error} />}
 
-              <Pressable style={({ pressed }) => [styles.btn, pressed && styles.pressed]} onPress={onNext}>
-                <Text style={styles.btnText}>Devam Et →</Text>
+              <Pressable
+                style={[styles.btn, (!kvkkAccepted || loading) && styles.btnDisabled]}
+                onPress={onNext}
+                disabled={!kvkkAccepted || loading}
+              >
+                {loading
+                  ? <ActivityIndicator color="#fff" />
+                  : <Text style={styles.btnText}>Devam Et →</Text>
+                }
               </Pressable>
 
               <Pressable style={styles.loginLink} onPress={() => router.push('/auth' as any)}>
@@ -229,10 +319,14 @@ export default function InfluencerRegisterScreen() {
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Influencer Bilgileri</Text>
 
-              <Field label="Telefon">
-                <TextInput style={styles.input} value={gsmNumber} onChangeText={(v) => { setGsmNumber(v); clearError(); }}
-                  placeholder="05XX XXX XX XX" placeholderTextColor="#9A96B5" keyboardType="phone-pad" />
-              </Field>
+              <View style={styles.field}>
+                <Text style={styles.label}>Telefon</Text>
+                <PhoneInput
+                  value={gsmNumber}
+                  onChange={(v) => { setGsmNumber(v); clearError(); }}
+                  borderColor={BORDER}
+                />
+              </View>
 
               <View style={styles.field}>
                 <Text style={styles.label}>Şirket Tipi</Text>
@@ -439,4 +533,42 @@ const styles = StyleSheet.create({
   loginLinkText: { fontSize: 13, color: '#5D5677' },
   backLink: { alignItems: 'center', paddingTop: 4 },
   backLinkText: { fontSize: 13, color: PURPLE, fontWeight: '600' },
+
+  kvkkRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  checkbox: {
+    width: 22, height: 22, borderRadius: 6,
+    borderWidth: 2, borderColor: BORDER,
+    backgroundColor: '#FBFAFF',
+    alignItems: 'center', justifyContent: 'center',
+    marginTop: 1, flexShrink: 0,
+  },
+  checkboxChecked: { backgroundColor: PURPLE, borderColor: PURPLE },
+  kvkkText: { flex: 1, fontSize: 13, color: '#5D5677', lineHeight: 19 },
+  kvkkLink: { color: '#2563EB', fontWeight: '600' },
+  optionalBadge: { color: '#9A96B5', fontWeight: '500' },
+
+  modalOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    padding: 20, maxHeight: '85%',
+  },
+  modalHeader: {
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between', marginBottom: 16,
+  },
+  modalTitle: { fontSize: 17, fontWeight: '700', color: '#1C1631' },
+  modalSubtitle: { fontSize: 13, color: '#5D5677', marginBottom: 4 },
+  modalDate: { fontSize: 12, color: '#9A96B5', marginBottom: 14 },
+  modalScroll: { flexGrow: 0 },
+  modalBody: { fontSize: 13, color: '#3D3660', lineHeight: 21 },
+  modalBtn: {
+    marginTop: 16, height: 50, borderRadius: 14,
+    backgroundColor: PURPLE,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  modalBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 });

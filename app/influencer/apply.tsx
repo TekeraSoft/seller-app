@@ -1,9 +1,12 @@
-import { applyAsInfluencer } from '@/features/influencer/api';
+import { PhoneInput } from '@/components/phone-input';
+import { applyAsInfluencer, getMyApplication } from '@/features/influencer/api';
 import type { InfluencerCompanyType } from '@/features/influencer/types';
+import { useAuth } from '@/context/auth-context';
+import { getSellerIdentityFromAccessToken } from '@/lib/api';
 import { Ionicons } from '@expo/vector-icons';
 import { isAxiosError } from 'axios';
-import { Stack, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { Redirect, Stack, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -25,12 +28,24 @@ function isValidUrl(v: string) {
 }
 
 export default function InfluencerApplyScreen() {
+  const { signOut, token, isAuthenticated } = useAuth();
   const router = useRouter();
+
+  if (!isAuthenticated) return <Redirect href="/auth" />;
+
+  const nameSurname = token ? (getSellerIdentityFromAccessToken(token).nameSurname ?? '') : '';
+  const [firstName, ...rest] = nameSurname.split(' ');
+  const lastName = rest.join(' ');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const [name, setName] = useState('');
-  const [surname, setSurname] = useState('');
+  // If application already exists, go to status page
+  useEffect(() => {
+    getMyApplication()
+      .then(() => router.replace('/influencer/status' as any))
+      .catch(() => {}); // No application yet, stay on apply
+  }, []);
+
   const [gsmNumber, setGsmNumber] = useState('');
   const [companyType, setCompanyType] = useState<InfluencerCompanyType>('SAHIS');
   const [nationalId, setNationalId] = useState('');
@@ -43,9 +58,7 @@ export default function InfluencerApplyScreen() {
   const ce = () => { if (error) setError(''); };
 
   function validate() {
-    if (!name.trim()) return 'Ad zorunludur.';
-    if (!surname.trim()) return 'Soyad zorunludur.';
-    if (!gsmNumber.trim()) return 'Telefon zorunludur.';
+    if (gsmNumber.length < 10) return 'Geçerli bir telefon numarası girin.';
     if (companyType === 'SAHIS' && !nationalId.trim()) return 'TC Kimlik No zorunludur.';
     if (companyType === 'LTD' && !taxNumber.trim()) return 'Vergi No zorunludur.';
     if (!instagram.trim() || !isValidUrl(instagram)) return 'Geçerli bir Instagram linki zorunludur.';
@@ -66,9 +79,7 @@ export default function InfluencerApplyScreen() {
       if (twitter.trim()) socialLinks['TWITTER'] = twitter.trim();
 
       await applyAsInfluencer({
-        name: name.trim(),
-        surname: surname.trim(),
-        gsmNumber: gsmNumber.trim(),
+        gsmNumber: gsmNumber ? `0${gsmNumber}` : '',
         companyType,
         nationalId: companyType === 'SAHIS' ? nationalId.trim() : undefined,
         taxNumber: companyType === 'LTD' ? taxNumber.trim() : undefined,
@@ -89,42 +100,79 @@ export default function InfluencerApplyScreen() {
   }
 
   return (
-    <SafeAreaView style={s.root} edges={['bottom']}>
-      <Stack.Screen options={{ title: 'Influencer Başvurusu' }} />
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+    <SafeAreaView style={s.root} edges={['top', 'bottom']}>
+      <Stack.Screen options={{ headerShown: false }} />
 
-          {/* Kişisel */}
+      {/* Üst bar */}
+      <View style={s.topBar}>
+        <Text style={s.topTitle}>Influencer Başvurusu</Text>
+        <Pressable style={s.signOutBtn} onPress={signOut} hitSlop={12}>
+          <Ionicons name="log-out-outline" size={22} color={P} />
+          <Text style={s.signOutText}>Çıkış</Text>
+        </Pressable>
+      </View>
+
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView
+          contentContainerStyle={s.scroll}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+
+          {/* Kişisel Bilgiler */}
           <View style={s.section}>
-            <Text style={s.sectionTitle}>Kişisel Bilgiler</Text>
+            <View style={s.sectionHeader}>
+              <View style={s.sectionIcon}>
+                <Ionicons name="person" size={14} color={P} />
+              </View>
+              <Text style={s.sectionTitle}>Kişisel Bilgiler</Text>
+            </View>
             <View style={s.row2}>
               <View style={[s.field, { flex: 1 }]}>
                 <Text style={s.label}>Ad</Text>
-                <TextInput style={s.input} value={name} onChangeText={v => { setName(v); ce(); }}
-                  placeholder="Adınız" placeholderTextColor="#B0AACC" autoCapitalize="words" />
+                <TextInput
+                  style={[s.input, s.inputDisabled]}
+                  value={firstName}
+                  editable={false}
+                />
               </View>
               <View style={[s.field, { flex: 1 }]}>
                 <Text style={s.label}>Soyad</Text>
-                <TextInput style={s.input} value={surname} onChangeText={v => { setSurname(v); ce(); }}
-                  placeholder="Soyadınız" placeholderTextColor="#B0AACC" autoCapitalize="words" />
+                <TextInput
+                  style={[s.input, s.inputDisabled]}
+                  value={lastName}
+                  editable={false}
+                />
               </View>
             </View>
             <View style={s.field}>
               <Text style={s.label}>Telefon</Text>
-              <TextInput style={s.input} value={gsmNumber} onChangeText={v => { setGsmNumber(v); ce(); }}
-                placeholder="05XX XXX XX XX" placeholderTextColor="#B0AACC" keyboardType="phone-pad" />
+              <PhoneInput value={gsmNumber} onChange={v => { setGsmNumber(v); ce(); }} />
             </View>
           </View>
 
-          {/* Şirket */}
+          {/* Şirket Bilgileri */}
           <View style={s.section}>
-            <Text style={s.sectionTitle}>Şirket Bilgileri</Text>
+            <View style={s.sectionHeader}>
+              <View style={s.sectionIcon}>
+                <Ionicons name="business" size={14} color={P} />
+              </View>
+              <Text style={s.sectionTitle}>Şirket Bilgileri</Text>
+            </View>
             <View style={s.field}>
               <Text style={s.label}>Şirket Tipi</Text>
               <View style={s.segRow}>
                 {(['SAHIS', 'LTD'] as InfluencerCompanyType[]).map(t => (
-                  <Pressable key={t} style={[s.seg, companyType === t && s.segActive]}
-                    onPress={() => { setCompanyType(t); ce(); }}>
+                  <Pressable
+                    key={t}
+                    style={[s.seg, companyType === t && s.segActive]}
+                    onPress={() => { setCompanyType(t); ce(); }}
+                  >
+                    <Ionicons
+                      name={t === 'SAHIS' ? 'person-circle-outline' : 'storefront-outline'}
+                      size={15}
+                      color={companyType === t ? '#fff' : '#8B87A8'}
+                    />
                     <Text style={[s.segText, companyType === t && s.segTextActive]}>
                       {t === 'SAHIS' ? 'Şahıs' : 'Ltd / A.Ş.'}
                     </Text>
@@ -135,35 +183,63 @@ export default function InfluencerApplyScreen() {
             {companyType === 'SAHIS' ? (
               <View style={s.field}>
                 <Text style={s.label}>TC Kimlik No</Text>
-                <TextInput style={s.input} value={nationalId} onChangeText={v => { setNationalId(v); ce(); }}
-                  placeholder="11 haneli TC Kimlik No" placeholderTextColor="#B0AACC" keyboardType="numeric" maxLength={11} />
+                <View style={s.inputRow}>
+                  <Ionicons name="card-outline" size={16} color="#B0AACC" />
+                  <TextInput
+                    style={s.inputFlex} value={nationalId}
+                    onChangeText={v => { setNationalId(v); ce(); }}
+                    placeholder="11 haneli TC Kimlik No" placeholderTextColor="#B0AACC"
+                    keyboardType="numeric" maxLength={11}
+                  />
+                </View>
               </View>
             ) : (
               <View style={s.field}>
                 <Text style={s.label}>Vergi No</Text>
-                <TextInput style={s.input} value={taxNumber} onChangeText={v => { setTaxNumber(v); ce(); }}
-                  placeholder="Vergi numarası" placeholderTextColor="#B0AACC" keyboardType="numeric" />
+                <View style={s.inputRow}>
+                  <Ionicons name="receipt-outline" size={16} color="#B0AACC" />
+                  <TextInput
+                    style={s.inputFlex} value={taxNumber}
+                    onChangeText={v => { setTaxNumber(v); ce(); }}
+                    placeholder="Vergi numarası" placeholderTextColor="#B0AACC"
+                    keyboardType="numeric"
+                  />
+                </View>
               </View>
             )}
           </View>
 
           {/* Sosyal Medya */}
           <View style={s.section}>
-            <Text style={s.sectionTitle}>Sosyal Medya</Text>
+            <View style={s.sectionHeader}>
+              <View style={s.sectionIcon}>
+                <Ionicons name="share-social" size={14} color={P} />
+              </View>
+              <Text style={s.sectionTitle}>Sosyal Medya</Text>
+            </View>
             {[
-              { label: 'Instagram', req: true, val: instagram, set: setInstagram },
-              { label: 'YouTube', req: false, val: youtube, set: setYoutube },
-              { label: 'TikTok', req: false, val: tiktok, set: setTiktok },
-              { label: 'Twitter / X', req: false, val: twitter, set: setTwitter },
-            ].map(({ label, req, val, set }) => (
+              { label: 'Instagram', icon: 'logo-instagram', req: true, val: instagram, set: setInstagram },
+              { label: 'YouTube', icon: 'logo-youtube', req: false, val: youtube, set: setYoutube },
+              { label: 'TikTok', icon: 'musical-notes-outline', req: false, val: tiktok, set: setTiktok },
+              { label: 'Twitter / X', icon: 'logo-twitter', req: false, val: twitter, set: setTwitter },
+            ].map(({ label, icon, req, val, set }) => (
               <View key={label} style={s.field}>
                 <View style={s.labelRow}>
                   <Text style={s.label}>{label}</Text>
-                  {req && <Text style={s.reqBadge}>Zorunlu</Text>}
+                  {req
+                    ? <Text style={s.req}>Zorunlu</Text>
+                    : <Text style={s.opt}>İsteğe bağlı</Text>
+                  }
                 </View>
-                <TextInput style={s.input} value={val} onChangeText={v => { set(v); ce(); }}
-                  placeholder="https://..." placeholderTextColor="#B0AACC"
-                  autoCapitalize="none" autoCorrect={false} keyboardType="url" />
+                <View style={s.inputRow}>
+                  <Ionicons name={icon as any} size={16} color="#B0AACC" />
+                  <TextInput
+                    style={s.inputFlex} value={val}
+                    onChangeText={v => { set(v); ce(); }}
+                    placeholder="https://..." placeholderTextColor="#B0AACC"
+                    autoCapitalize="none" autoCorrect={false} keyboardType="url"
+                  />
+                </View>
               </View>
             ))}
           </View>
@@ -175,9 +251,18 @@ export default function InfluencerApplyScreen() {
             </View>
           )}
 
-          <Pressable style={({ pressed }) => [s.btn, (loading || pressed) && { opacity: 0.8 }]}
-            onPress={onSubmit} disabled={loading}>
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Başvuruyu Gönder</Text>}
+          <Pressable
+            style={({ pressed }) => [s.btn, (loading || pressed) && { opacity: 0.82 }]}
+            onPress={onSubmit}
+            disabled={loading}
+          >
+            {loading
+              ? <ActivityIndicator color="#fff" />
+              : <>
+                  <Ionicons name="send" size={16} color="#fff" />
+                  <Text style={s.btnText}>Başvuruyu Gönder</Text>
+                </>
+            }
           </Pressable>
 
         </ScrollView>
@@ -188,23 +273,46 @@ export default function InfluencerApplyScreen() {
 
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#F7F6FB' },
-  scroll: { padding: 16, gap: 12, paddingBottom: 40 },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, padding: 32, backgroundColor: '#F7F6FB' },
+
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ECEAF8',
+    backgroundColor: '#fff',
+  },
+  topTitle: { fontSize: 16, fontWeight: '700', color: '#1C1631' },
+  signOutBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  signOutText: { fontSize: 13, fontWeight: '600', color: P },
+
+  scroll: { padding: 16, gap: 14, paddingBottom: 48 },
 
   section: {
     backgroundColor: '#fff',
     borderRadius: 16,
     padding: 16,
-    gap: 12,
+    gap: 14,
     borderWidth: 1,
     borderColor: '#ECEAF8',
   },
-  sectionTitle: { fontSize: 13, fontWeight: '700', color: P, marginBottom: 2 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sectionIcon: {
+    width: 26, height: 26, borderRadius: 8,
+    backgroundColor: 'rgba(141,115,255,0.10)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  sectionTitle: { fontSize: 14, fontWeight: '700', color: '#1C1631' },
 
   row2: { flexDirection: 'row', gap: 10 },
   field: { gap: 6 },
   labelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  label: { fontSize: 13, fontWeight: '600', color: '#2E2350' },
-  reqBadge: { fontSize: 10, fontWeight: '700', color: P, backgroundColor: 'rgba(141,115,255,0.1)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  label: { fontSize: 13, fontWeight: '600', color: '#3D3660' },
+  req: { fontSize: 10, fontWeight: '700', color: P, backgroundColor: 'rgba(141,115,255,0.10)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  opt: { fontSize: 10, fontWeight: '600', color: '#9A96B5', backgroundColor: '#F4F3F8', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
 
   input: {
     height: 48, borderRadius: 12,
@@ -212,32 +320,47 @@ const s = StyleSheet.create({
     backgroundColor: '#FBFAFF',
     paddingHorizontal: 14, fontSize: 14, color: '#1C1631',
   },
+  inputDisabled: {
+    backgroundColor: '#F4F3F8',
+    borderColor: '#ECEAF8',
+    color: '#9A96B5',
+  },
+  inputRow: {
+    height: 48, borderRadius: 12,
+    borderWidth: 1.5, borderColor: '#DDD7FF',
+    backgroundColor: '#FBFAFF',
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 12, gap: 8,
+  },
+  inputFlex: { flex: 1, fontSize: 14, color: '#1C1631', height: '100%' },
 
   segRow: { flexDirection: 'row', gap: 10 },
   seg: {
-    flex: 1, height: 42, borderRadius: 10,
+    flex: 1, height: 46, borderRadius: 12,
     borderWidth: 1.5, borderColor: '#DDD7FF',
     backgroundColor: '#FBFAFF',
+    flexDirection: 'row', gap: 6,
     alignItems: 'center', justifyContent: 'center',
   },
   segActive: { backgroundColor: P, borderColor: P },
-  segText: { fontSize: 13, fontWeight: '600', color: '#5D5677' },
+  segText: { fontSize: 13, fontWeight: '600', color: '#8B87A8' },
   segTextActive: { color: '#fff' },
 
   errorBox: {
     flexDirection: 'row', gap: 8, alignItems: 'center',
     backgroundColor: '#FEF2F2', borderRadius: 12,
-    borderWidth: 1, borderColor: '#FECACA',
-    padding: 12,
+    borderWidth: 1, borderColor: '#FECACA', padding: 12,
   },
   errorText: { flex: 1, color: '#B91C1C', fontSize: 13 },
 
   btn: {
-    height: 52, borderRadius: 14,
+    height: 54, borderRadius: 14,
     backgroundColor: P,
+    flexDirection: 'row', gap: 8,
     alignItems: 'center', justifyContent: 'center',
     shadowColor: P, shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
+    shadowOpacity: 0.3, shadowRadius: 10, elevation: 5,
   },
   btnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+
 });

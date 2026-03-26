@@ -104,6 +104,7 @@ export default function RootLayout() {
             <Stack.Screen name="auth" options={{ title: 'Giriş', headerShown: false }} />
             <Stack.Screen name="register/index" options={{ headerShown: false }} />
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="influencer" options={{ headerShown: false }} />
             <Stack.Screen name="notifications" options={{ title: 'Bildirimler' }} />
             <Stack.Screen name="settings" options={{ title: 'Ayarlar' }} />
             <Stack.Screen name="seller-profile" options={{ title: 'Satıcı Profili' }} />
