@@ -52,6 +52,7 @@ export const API_BASE_URL = baseURL;
 
 export const api = axios.create({
   baseURL,
+  timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -59,6 +60,7 @@ export const api = axios.create({
 
 const refreshClient = axios.create({
   baseURL,
+  timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -155,6 +157,24 @@ export function getRolesFromToken(accessToken: string): string[] {
   const rolesRaw = claims.roles;
   if (!Array.isArray(rolesRaw)) return [];
   return rolesRaw.filter((r): r is string => typeof r === 'string');
+}
+
+export async function refreshAuthSession(): Promise<AuthSession | null> {
+  const currentRefreshToken = authSession?.refreshToken;
+  if (!currentRefreshToken) return null;
+  try {
+    const response = await refreshClient.post<AuthSession>('/auth/refresh', {
+      refreshToken: currentRefreshToken,
+    });
+    const nextAccessToken = response.data?.accessToken?.trim();
+    const nextRefreshToken = response.data?.refreshToken?.trim();
+    if (!nextAccessToken || !nextRefreshToken) return null;
+    const newSession: AuthSession = { accessToken: nextAccessToken, refreshToken: nextRefreshToken };
+    await setAuthSession(newSession);
+    return newSession;
+  } catch {
+    return null;
+  }
 }
 
 async function refreshAccessToken(): Promise<string | null> {

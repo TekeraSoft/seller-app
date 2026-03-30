@@ -107,7 +107,7 @@ export default function RootLayout() {
             <Stack.Screen name="influencer" options={{ headerShown: false }} />
             <Stack.Screen name="notifications" options={{ title: 'Bildirimler' }} />
             <Stack.Screen name="settings" options={{ title: 'Ayarlar' }} />
-            <Stack.Screen name="seller-profile" options={{ title: 'Satıcı Profili' }} />
+            <Stack.Screen name="seller-profile" options={{ title: 'Satıcı Profili', headerBackVisible: false }} />
             <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
           </Stack>
           <StatusBar style="dark" />

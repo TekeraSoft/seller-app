@@ -11,5 +11,13 @@ export default function RootIndex() {
 
   if (roles.includes('CUSTOMER')) return <Redirect href="/influencer" />;
 
+  if (
+    roles.includes('WITHOUT_APPROVAL_SELLER') &&
+    !roles.includes('SELLER') &&
+    !roles.includes('SUPER_ADMIN')
+  ) {
+    return <Redirect href="/seller-profile" />;
+  }
+
   return <Redirect href="/orders" />;
 }

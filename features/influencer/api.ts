@@ -111,3 +111,7 @@ export async function uploadInfluencerDocument(
     headers: { 'Content-Type': 'multipart/form-data' },
   });
 }
+
+export async function closeInfluencerAccount(): Promise<void> {
+  await api.post('/influencer/close-account');
+}

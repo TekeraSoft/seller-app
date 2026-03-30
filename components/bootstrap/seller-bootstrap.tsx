@@ -7,7 +7,7 @@ import { resetReportsState } from '@/store/reports-slice';
 import { hydrateSellerDashboard, resetSellerState } from '@/store/seller-slice';
 
 export function SellerBootstrap() {
-  const { isAuthenticated, token, userType } = useAuth();
+  const { isAuthenticated, token, userType, roles } = useAuth();
   const dispatch = useAppDispatch();
 
   useEffect(() => {
@@ -18,8 +18,9 @@ export function SellerBootstrap() {
       return;
     }
     if (userType !== 'seller') return;
+    if (!roles.includes('SELLER')) return;
     dispatch(hydrateSellerDashboard({ token }));
-  }, [dispatch, isAuthenticated, token, userType]);
+  }, [dispatch, isAuthenticated, token, userType, roles]);
 
   return null;
 }

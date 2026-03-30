@@ -226,14 +226,21 @@ function SellerHeader() {
 }
 
 export default function TabLayout() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, roles } = useAuth();
 
   if (isLoading) return null;
 
-  if (isLoading)
-
   if (!isAuthenticated) {
     return <Redirect href="/auth" />;
+  }
+
+  // Onaylanmamış satıcı tabları göremez, onboarding ekranına yönlendir
+  if (
+    roles.includes('WITHOUT_APPROVAL_SELLER') &&
+    !roles.includes('SELLER') &&
+    !roles.includes('SUPER_ADMIN')
+  ) {
+    return <Redirect href="/seller-profile" />;
   }
 
   return (
