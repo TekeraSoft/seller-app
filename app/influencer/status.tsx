@@ -1,6 +1,7 @@
 import { acceptInfluencerContract, getMyApplication } from '@/features/influencer/api';
 import type { InfluencerApplication, InfluencerStatus } from '@/features/influencer/types';
 import { useAuth } from '@/context/auth-context';
+import { refreshAuthSession } from '@/lib/api';
 import { Ionicons } from '@expo/vector-icons';
 import { Redirect, Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -168,12 +169,7 @@ function ContractModal({
   onClose: () => void;
   accepting: boolean;
 }) {
-  const [scrolledToBottom, setScrolledToBottom] = useState(false);
-
-  // Her açılışta sıfırla
-  useEffect(() => {
-    if (visible) setScrolledToBottom(false);
-  }, [visible]);
+  const [scrolledToBottom, setScrolledToBottom] = useState(true);
 
   function handleScroll(e: NativeSyntheticEvent<NativeScrollEvent>) {
     const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
@@ -251,7 +247,7 @@ function ContractModal({
 // ─── Ana Ekran ────────────────────────────────────────────────────────────────
 
 export default function InfluencerStatusScreen() {
-  const { signOut, isAuthenticated } = useAuth();
+  const { signIn, signOut, isAuthenticated } = useAuth();
   const router = useRouter();
   const [app, setApp] = useState<InfluencerApplication | null>(null);
   const [loading, setLoading] = useState(true);
@@ -304,7 +300,12 @@ export default function InfluencerStatusScreen() {
     try {
       await acceptInfluencerContract();
       setContractVisible(false);
-      await load(true);
+      // Token'ı yenile ki yeni INFLUENCER rolü alınsın
+      const newSession = await refreshAuthSession();
+      if (newSession) {
+        await signIn(newSession);
+      }
+      router.replace('/(influencer-tabs)/dashboard' as any);
     } catch {
       // hata göster
     } finally {
@@ -660,7 +661,7 @@ const cm = StyleSheet.create({
     backgroundColor: '#fff',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: '92%',
+    height: '70%',
   },
   header: {
     flexDirection: 'row',

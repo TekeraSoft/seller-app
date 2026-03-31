@@ -115,3 +115,51 @@ export async function uploadInfluencerDocument(
 export async function closeInfluencerAccount(): Promise<void> {
   await api.post('/influencer/close-account');
 }
+
+// ─── Link API'leri ────────────────────────────────────────────────────────────
+
+export type InfluencerLinkDto = {
+  id: string;
+  catalogId: string;
+  catalogName: string | null;
+  catalogSlug: string | null;
+  catalogImage: string | null;
+  uniqueCode: string;
+  referralUrl: string;
+  clickCount: number;
+  visitorCount: number;
+  expiresAt: string;
+  secondExpiresAt: string;
+  active: boolean;
+  createdAt: string | null;
+};
+
+export type InfluencerDashboardDto = {
+  totalLinks: number;
+  totalClicks: number;
+  totalVisitors: number;
+  totalConversions: number;
+};
+
+export async function createInfluencerLink(catalogId: string): Promise<InfluencerLinkDto> {
+  const res = await api.post<ApiResponse<InfluencerLinkDto>>(`/influencer/links?catalogId=${catalogId}`);
+  if (!res.data?.data) throw new Error('Link oluşturulamadı');
+  return res.data.data;
+}
+
+export async function getMyLinks(page = 0, size = 100): Promise<InfluencerLinkDto[]> {
+  const res = await api.get(`/influencer/links?page=${page}&size=${size}`);
+  const raw = res.data?.data ?? res.data;
+  if (Array.isArray(raw)) return raw;
+  if (raw?.content && Array.isArray(raw.content)) return raw.content;
+  return [];
+}
+
+export async function deactivateLink(linkId: string): Promise<void> {
+  await api.delete(`/influencer/links/${linkId}`);
+}
+
+export async function getInfluencerDashboard(): Promise<InfluencerDashboardDto> {
+  const res = await api.get<ApiResponse<InfluencerDashboardDto>>('/influencer/dashboard');
+  return res.data?.data ?? { totalLinks: 0, totalClicks: 0, totalVisitors: 0, totalConversions: 0 };
+}

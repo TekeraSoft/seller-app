@@ -1,10 +1,13 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
+import * as SplashScreen from 'expo-splash-screen';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef } from 'react';
 import { Provider } from 'react-redux';
 import 'react-native-reanimated';
+
+SplashScreen.preventAutoHideAsync();
 
 import { VersionGuard } from '@/components/app-update/version-guard';
 import { SellerBootstrap } from '@/components/bootstrap/seller-bootstrap';
@@ -105,6 +108,8 @@ export default function RootLayout() {
             <Stack.Screen name="register/index" options={{ headerShown: false }} />
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="influencer" options={{ headerShown: false }} />
+            <Stack.Screen name="(influencer-tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="product-detail" options={{ headerShown: false }} />
             <Stack.Screen name="notifications" options={{ title: 'Bildirimler' }} />
             <Stack.Screen name="settings" options={{ title: 'Ayarlar' }} />
             <Stack.Screen name="seller-profile" options={{ title: 'Satıcı Profili', headerBackVisible: false }} />

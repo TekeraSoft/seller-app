@@ -192,7 +192,7 @@ async function refreshAccessToken(): Promise<string | null> {
         if (!nextAccessToken || !nextRefreshToken) {
           throw new Error('Refresh response does not include accessToken and refreshToken');
         }
-        if (!isSellerAccessToken(nextAccessToken)) {
+        if (!isValidAppToken(nextAccessToken)) {
           throw new Error(SELLER_ONLY_ERROR_MESSAGE);
         }
         await setAuthSession({ accessToken: nextAccessToken, refreshToken: nextRefreshToken });

@@ -1,9 +1,17 @@
 import { Redirect } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
+import { useEffect } from 'react';
 
 import { useAuth } from '@/context/auth-context';
 
 export default function RootIndex() {
   const { isAuthenticated, isLoading, roles } = useAuth();
+
+  useEffect(() => {
+    if (!isLoading) {
+      SplashScreen.hideAsync();
+    }
+  }, [isLoading]);
 
   if (isLoading) return null;
 
