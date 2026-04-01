@@ -13,12 +13,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { Fonts } from '@/constants/theme';
+import { useAuth } from '@/context/auth-context';
 import {
   fetchNotifications,
   markAllNotificationsAsRead,
   markNotificationAsRead,
   NotificationItem,
 } from '@/features/notifications/api';
+import { routeDeepLink, getDefaultRoute } from '@/features/notifications/deep-link-router';
 import {
   getLocalNotifications,
   markAllLocalNotificationsAsRead,
@@ -35,6 +37,9 @@ function formatDate(value: string | null | undefined): string {
 
 export default function NotificationsScreen() {
   const router = useRouter();
+  const { roles } = useAuth();
+  const isInfluencer = roles.includes('INFLUENCER') || roles.includes('WITHOUT_APPROVAL_INFLUENCER');
+  const isSeller = roles.includes('SELLER');
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [page, setPage] = useState(0);
   const [size] = useState(20);
@@ -112,6 +117,12 @@ export default function NotificationsScreen() {
       }
 
       const deepLink = item.deepLink ?? '';
+      const roleCtx = { isInfluencer, isSeller };
+
+      // Deep link routing (influencer koruması dahil)
+      if (routeDeepLink(router, deepLink, roleCtx)) return;
+
+      // Satıcı deep link'leri
       if (deepLink.includes('/messages')) {
         router.push('/messages');
         return;
@@ -145,9 +156,10 @@ export default function NotificationsScreen() {
         }
       }
 
-      router.push('/orders');
+      // Fallback — role'e göre doğru yere
+      router.push(getDefaultRoute(roleCtx) as any);
     },
-    [router]
+    [router, isInfluencer, isSeller]
   );
 
   const markAllRead = useCallback(async () => {

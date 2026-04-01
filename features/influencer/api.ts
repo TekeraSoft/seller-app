@@ -84,6 +84,22 @@ export async function updateInfluencerBankInfo(payload: {
   await api.put('/influencer/bank-info', payload);
 }
 
+export type InfluencerContractInfo = {
+  title: string;
+  version: string;
+  publishedAt: string | null;
+  hash: string;
+  content: string;
+  accepted: boolean;
+  acceptedAt: string | null;
+};
+
+export async function getInfluencerContract(): Promise<InfluencerContractInfo> {
+  const response = await api.get<ApiResponse<InfluencerContractInfo>>('/influencer/contract');
+  if (!response.data?.data) throw new Error('Sözleşme bulunamadı');
+  return response.data.data;
+}
+
 export async function acceptInfluencerContract(): Promise<void> {
   await api.post('/influencer/accept-contract');
 }

@@ -108,8 +108,11 @@ export default function InfluencerTabLayout() {
   if (isLoading) return null;
   if (!isAuthenticated) return <Redirect href="/auth" />;
 
-  // INFLUENCER rolü yoksa buraya erişemez
+  // Sadece onaylı INFLUENCER paneli görebilir
   if (!roles.includes('INFLUENCER')) {
+    if (roles.includes('WITHOUT_APPROVAL_INFLUENCER')) {
+      return <Redirect href="/influencer/status" />;
+    }
     return <Redirect href="/influencer" />;
   }
 

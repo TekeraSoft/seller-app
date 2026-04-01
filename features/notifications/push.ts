@@ -30,7 +30,6 @@ export async function registerCurrentDeviceForPush(): Promise<string | null> {
   initializePushNotificationHandler();
 
   if (Platform.OS === 'web') return null;
-  if (!Device.isDevice) return null;
 
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {

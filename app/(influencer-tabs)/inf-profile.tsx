@@ -25,8 +25,10 @@ import {
 } from '@/features/influencer/api';
 import { InfluencerApplication } from '@/features/influencer/types';
 import {
-  createSellerTicket,
-  fetchSellerTickets,
+  addMessageToTicketing,
+  createInfluencerTicket,
+  fetchInfluencerTickets,
+  fetchTicketById,
 } from '@/features/ticketing/api';
 import { TicketingItem } from '@/features/ticketing/types';
 
@@ -124,7 +126,7 @@ MADDE 10 — YÜRÜRLÜK
 Tekera Teknoloji Ticaret ve Sanayi Limited Şirketi
 tekera21.com | destek@tekera21.com`;
 
-type Section = 'menu' | 'personal' | 'bank' | 'contract' | 'tickets' | 'newTicket';
+type Section = 'menu' | 'personal' | 'bank' | 'contract' | 'tickets' | 'newTicket' | 'ticketDetail';
 
 export default function InfProfileScreen() {
   const insets = useSafeAreaInsets();
@@ -149,6 +151,9 @@ export default function InfProfileScreen() {
   const [tickets, setTickets] = useState<TicketingItem[]>([]);
   const [ticketMsg, setTicketMsg] = useState('');
   const [ticketSending, setTicketSending] = useState(false);
+  const [selectedTicket, setSelectedTicket] = useState<TicketingItem | null>(null);
+  const [replyMsg, setReplyMsg] = useState('');
+  const [replySending, setReplySending] = useState(false);
 
   const loadApp = useCallback(async () => {
     try {
@@ -200,7 +205,7 @@ export default function InfProfileScreen() {
   const loadTickets = async () => {
     setLoading(true);
     try {
-      const res = await fetchSellerTickets({ page: 0, size: 50 });
+      const res = await fetchInfluencerTickets({ page: 0, size: 50 });
       setTickets(res.content);
     } catch {}
     setLoading(false);
@@ -210,7 +215,7 @@ export default function InfProfileScreen() {
     if (!ticketMsg.trim()) return;
     setTicketSending(true);
     try {
-      await createSellerTicket(ticketMsg.trim());
+      await createInfluencerTicket(ticketMsg.trim());
       setTicketMsg('');
       Alert.alert('Gönderildi', 'Destek talebiniz oluşturuldu');
       loadTickets();
@@ -220,6 +225,29 @@ export default function InfProfileScreen() {
     } finally {
       setTicketSending(false);
     }
+  };
+
+  const handleReply = async () => {
+    if (!replyMsg.trim() || !selectedTicket) return;
+    setReplySending(true);
+    try {
+      const updated = await addMessageToTicketing({ ticketingId: selectedTicket.id, content: replyMsg.trim() });
+      setSelectedTicket(updated);
+      setReplyMsg('');
+    } catch {
+      Alert.alert('Hata', 'Mesaj gönderilemedi');
+    } finally {
+      setReplySending(false);
+    }
+  };
+
+  const openTicket = async (ticket: TicketingItem) => {
+    setSelectedTicket(ticket);
+    setSection('ticketDetail');
+    try {
+      const fresh = await fetchTicketById(ticket.id);
+      setSelectedTicket(fresh);
+    } catch {}
   };
 
   // ─── Ana Menü ─────────────────────────────────────────────────────
@@ -382,17 +410,19 @@ export default function InfProfileScreen() {
             <Pressable
               key={t.id}
               style={s.ticketCard}
-              onPress={() => router.push(`/ticket/${t.id}` as any)}
+              onPress={() => void openTicket(t)}
             >
               <View style={s.ticketHeader}>
-                <View style={[s.ticketStatus, { backgroundColor: t.status === 'OPEN' ? 'rgba(78,205,196,0.1)' : 'rgba(154,150,181,0.1)' }]}>
-                  <AppText style={[s.ticketStatusText, { color: t.status === 'OPEN' ? '#4ECDC4' : '#9A96B5' }]}>
-                    {t.status === 'OPEN' ? 'Açık' : 'Kapalı'}
+                <View style={[s.ticketStatus, { backgroundColor: t.isOpen ? 'rgba(78,205,196,0.1)' : 'rgba(154,150,181,0.1)' }]}>
+                  <AppText style={[s.ticketStatusText, { color: t.isOpen ? '#4ECDC4' : '#9A96B5' }]}>
+                    {t.isOpen ? 'Açık' : 'Kapalı'}
                   </AppText>
                 </View>
                 <AppText style={s.ticketDate}>{t.createdAt}</AppText>
               </View>
-              <AppText style={s.ticketMsg} numberOfLines={2}>{t.lastMessage}</AppText>
+              <AppText style={s.ticketMsg} numberOfLines={2}>
+                {t.messages[t.messages.length - 1]?.content ?? ''}
+              </AppText>
             </Pressable>
           ))
         )}
@@ -430,6 +460,57 @@ export default function InfProfileScreen() {
             )}
           </Pressable>
         </View>
+      </ScrollView>
+    );
+  }
+
+  // ─── Ticket Detay ─────────────────────────────────────────────────
+  if (section === 'ticketDetail' && selectedTicket) {
+    return (
+      <ScrollView style={s.container} contentContainerStyle={[s.content, { paddingBottom: 100 + insets.bottom }]}>
+        {renderBack('Destek Talebi')}
+        <View style={[s.ticketStatus, { marginBottom: 12, alignSelf: 'flex-start', backgroundColor: selectedTicket.isOpen ? 'rgba(78,205,196,0.1)' : 'rgba(154,150,181,0.1)' }]}>
+          <AppText style={[s.ticketStatusText, { color: selectedTicket.isOpen ? '#4ECDC4' : '#9A96B5' }]}>
+            {selectedTicket.isOpen ? 'Açık' : 'Kapalı'}
+          </AppText>
+        </View>
+        {selectedTicket.messages.map((msg, i) => {
+          const isSupport = msg.title !== selectedTicket.sellerTitle && msg.title !== 'Customer';
+          return (
+            <View key={i} style={[s.msgBubble, isSupport ? s.msgBubbleSupport : s.msgBubbleUser]}>
+              <AppText style={s.msgSender}>{msg.userNameSurname}</AppText>
+              <AppText style={s.msgContent}>{msg.content}</AppText>
+              {msg.createdAt ? <AppText style={s.msgTime}>{msg.createdAt}</AppText> : null}
+            </View>
+          );
+        })}
+        {selectedTicket.isOpen && (
+          <View style={[s.detailCard, { marginTop: 8 }]}>
+            <AppText style={s.inputLabel}>Yanıt Yaz</AppText>
+            <TextInput
+              style={[s.input, { height: 100, textAlignVertical: 'top' }]}
+              value={replyMsg}
+              onChangeText={setReplyMsg}
+              placeholder="Mesajınızı yazın..."
+              placeholderTextColor="#C8C4E0"
+              multiline
+            />
+            <Pressable
+              style={[s.saveBtn, replySending && { opacity: 0.6 }]}
+              onPress={() => void handleReply()}
+              disabled={replySending}
+            >
+              {replySending ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Ionicons name="send" size={16} color="#fff" />
+                  <AppText style={s.saveBtnText}>Gönder</AppText>
+                </>
+              )}
+            </Pressable>
+          </View>
+        )}
       </ScrollView>
     );
   }
@@ -562,4 +643,12 @@ const s = StyleSheet.create({
   // Boş durum
   emptyState: { alignItems: 'center', paddingVertical: 40, gap: 8 },
   emptyTitle: { fontSize: 14, color: '#9A96B5' },
+
+  // Mesaj baloncukları
+  msgBubble: { borderRadius: 12, padding: 12, marginBottom: 8, maxWidth: '90%' },
+  msgBubbleUser: { backgroundColor: '#F0EEFF', alignSelf: 'flex-end' },
+  msgBubbleSupport: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#F0EEFF', alignSelf: 'flex-start' },
+  msgSender: { fontSize: 11, fontWeight: '700', color: '#8D73FF', marginBottom: 4 },
+  msgContent: { fontSize: 13, color: '#3D3660', lineHeight: 19 },
+  msgTime: { fontSize: 10, color: '#9A96B5', marginTop: 4, textAlign: 'right' },
 });

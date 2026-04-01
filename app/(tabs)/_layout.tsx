@@ -234,6 +234,16 @@ export default function TabLayout() {
     return <Redirect href="/auth" />;
   }
 
+  // Influencer (onaylı veya bekleyen) ama satıcı değilse satıcı paneline erişemez
+  const isInfluencer = roles.includes('INFLUENCER') || roles.includes('WITHOUT_APPROVAL_INFLUENCER');
+  const isSeller = roles.includes('SELLER') || roles.includes('SUPER_ADMIN');
+  if (isInfluencer && !isSeller) {
+    if (roles.includes('INFLUENCER')) {
+      return <Redirect href="/(influencer-tabs)/dashboard" />;
+    }
+    return <Redirect href="/influencer/status" />;
+  }
+
   // Onaylanmamış satıcı tabları göremez, onboarding ekranına yönlendir
   if (
     roles.includes('WITHOUT_APPROVAL_SELLER') &&

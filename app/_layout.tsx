@@ -11,14 +11,18 @@ SplashScreen.preventAutoHideAsync();
 
 import { VersionGuard } from '@/components/app-update/version-guard';
 import { SellerBootstrap } from '@/components/bootstrap/seller-bootstrap';
-import { AuthProvider } from '@/context/auth-context';
+import { AuthProvider, useAuth } from '@/context/auth-context';
+import { routeDeepLink, getDefaultRoute } from '@/features/notifications/deep-link-router';
 import { findSellerOrderIdByOrderNo } from '@/features/orders/api';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { store } from '@/store';
 
 function NotificationRouter() {
   const router = useRouter();
+  const { roles } = useAuth();
   const lastHandledIdRef = useRef<string | null>(null);
+  const isInfluencer = roles.includes('INFLUENCER') || roles.includes('WITHOUT_APPROVAL_INFLUENCER');
+  const isSeller = roles.includes('SELLER');
 
   useEffect(() => {
     const handleResponse = async (response: Notifications.NotificationResponse) => {
@@ -29,6 +33,17 @@ function NotificationRouter() {
       lastHandledIdRef.current = requestIdentifier;
 
       const data = response.notification.request.content.data as Record<string, unknown>;
+      const deepLinkRaw =
+        (typeof data?.deepLink === 'string' && data.deepLink) ||
+        (typeof data?.deep_link === 'string' && data.deep_link) ||
+        '';
+
+      const roleCtx = { isInfluencer, isSeller };
+
+      // Deep link routing (influencer koruması dahil)
+      if (routeDeepLink(router, deepLinkRaw, roleCtx)) return;
+
+      // Satıcı deep link'leri — sadece satıcı rolü varsa
       const sellerOrderIdRaw =
         (typeof data?.sellerOrderId === 'string' && data.sellerOrderId) ||
         (typeof data?.seller_order_id === 'string' && data.seller_order_id) ||
@@ -39,11 +54,6 @@ function NotificationRouter() {
         router.push({ pathname: '/order/[id]', params: { id: sellerOrderIdRaw.trim() } });
         return;
       }
-
-      const deepLinkRaw =
-        (typeof data?.deepLink === 'string' && data.deepLink) ||
-        (typeof data?.deep_link === 'string' && data.deep_link) ||
-        '';
 
       if (deepLinkRaw.includes('/messages')) {
         router.push('/messages');
@@ -65,11 +75,12 @@ function NotificationRouter() {
             return;
           }
         } catch {
-          // Fallback tab navigation below.
+          // Fallback below.
         }
       }
 
-      router.push('/orders');
+      // Fallback — role'e göre doğru yere
+      router.push(getDefaultRoute(roleCtx) as any);
     };
 
     const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
@@ -87,7 +98,7 @@ function NotificationRouter() {
     return () => {
       subscription.remove();
     };
-  }, [router]);
+  }, [router, isInfluencer, isSeller]);
 
   return null;
 }

@@ -1,4 +1,5 @@
-import { acceptInfluencerContract, getMyApplication } from '@/features/influencer/api';
+import { acceptInfluencerContract, getInfluencerContract, getMyApplication } from '@/features/influencer/api';
+import type { InfluencerContractInfo } from '@/features/influencer/api';
 import type { InfluencerApplication, InfluencerStatus } from '@/features/influencer/types';
 import { useAuth } from '@/context/auth-context';
 import { refreshAuthSession } from '@/lib/api';
@@ -40,122 +41,6 @@ function getStepIndex(status: InfluencerStatus): number {
   return map[status] ?? 0;
 }
 
-// ─── Sözleşme metni ──────────────────────────────────────────────────────────
-
-const CONTRACT_TEXT = `TEKERA21 ETKİLEYİCİ (INFLUENCER) İŞBİRLİĞİ SÖZLEŞMESİ
-
-Son Güncelleme: Ocak 2026
-
-Bu sözleşme; Tekera Teknoloji Ticaret ve Sanayi Limited Şirketi ("Tekera21") ile influencer başvurusunu tamamlayan kişi ("Etkileşimci / Influencer") arasında akdedilmiştir.
-
-─────────────────────────────────────────
-
-MADDE 1 — TANIMLAR
-
-1.1. "Platform": Tekera21'in işlettiği tekera21.com alan adlı e-ticaret ve içerik platformu ile mobil uygulamalarını ifade eder.
-
-1.2. "İçerik": Influencer tarafından oluşturulan fotoğraf, video, hikâye, reels, gönderi ve benzeri dijital materyalleri ifade eder.
-
-1.3. "Kampanya": Tekera21 tarafından belirlenen ürün, hizmet veya marka tanıtım faaliyetlerini ifade eder.
-
-─────────────────────────────────────────
-
-MADDE 2 — SÖZLEŞMENİN KONUSU
-
-İşbu sözleşme; Influencer'ın Tekera21 platformunda yer alan ürün ve hizmetleri sosyal medya kanallarında tanıtması, Tekera21'in ise Influencer'a belirlenen komisyon/ücret ödemesini yapması esasına dayanmaktadır.
-
-─────────────────────────────────────────
-
-MADDE 3 — TARAFLARIN YÜKÜMLÜLÜKLERİ
-
-3.1. Influencer'ın Yükümlülükleri:
-
-a) Paylaşılan içeriklerin doğru, yanıltıcı olmayan ve Türk Ticaret Kanunu ile Reklam Kanunu'na uygun olmasını sağlamak.
-
-b) Ticari iş birliği olan paylaşımları "#reklam", "#işbirliği" veya "#sponsored" gibi açıklayıcı etiketlerle belirtmek.
-
-c) Tekera21'in marka kimliğine zarar verecek, rakip platformları öne çıkaracak veya yanıltıcı bilgi içerecek içerik üretmemek.
-
-d) Başvuruda beyan edilen kişisel ve finansal bilgilerin doğruluğunu korumak; değişiklik durumunda Tekera21'i derhal bilgilendirmek.
-
-e) Tekera21'in önceden yazılı onayı olmaksızın platform aracılığıyla elde edilen gizli ticari bilgileri üçüncü kişilerle paylaşmamak.
-
-3.2. Tekera21'in Yükümlülükleri:
-
-a) Kampanya detaylarını Influencer'a önceden bildirmek.
-
-b) Belirlenen komisyon veya ücret ödemelerini zamanında ve eksiksiz yapmak.
-
-c) Influencer'ın kişisel verilerini KVKK kapsamında korumak.
-
-─────────────────────────────────────────
-
-MADDE 4 — ÖDEME KOŞULLARI
-
-4.1. Ödemeler; Influencer tarafından sisteme kayıtlı IBAN numarasına, her ayın son iş günü yapılır.
-
-4.2. Minimum ödeme eşiği 500 TL olup bu tutarın altındaki bakiyeler bir sonraki ödeme dönemine devredilir.
-
-4.3. Vergi yükümlülükleri tamamen Influencer'a aittir. Tekera21, yasal zorunluluklar çerçevesinde stopaj kesintisi uygulayabilir.
-
-4.4. Yanlış veya eksik banka bilgisinden kaynaklanacak ödeme gecikmeleri Tekera21'in sorumluluğunda değildir.
-
-─────────────────────────────────────────
-
-MADDE 5 — FİKRİ MÜLKİYET
-
-5.1. Influencer, Tekera21 için ürettiği içeriklerin kullanım hakkını Tekera21'e devreder. Tekera21 bu içerikleri platform içi pazarlama faaliyetlerinde kullanabilir.
-
-5.2. Influencer, ürettiği içeriklerde üçüncü kişilerin fikri mülkiyet haklarını ihlal etmeyeceğini taahhüt eder.
-
-─────────────────────────────────────────
-
-MADDE 6 — GİZLİLİK
-
-6.1. Taraflar, işbu sözleşme kapsamında öğrendikleri ticari sırları ve gizli bilgileri sözleşmenin sona ermesinden itibaren 2 yıl süreyle gizli tutmakla yükümlüdür.
-
-─────────────────────────────────────────
-
-MADDE 7 — SÖZLEŞMENİN FESHİ
-
-7.1. Her iki taraf da 15 gün önceden yazılı bildirimde bulunmak kaydıyla sözleşmeyi sonlandırabilir.
-
-7.2. Influencer'ın aşağıdaki hallerde sözleşmesi derhal feshedilebilir:
-   - Yanıltıcı içerik yayımlaması
-   - Marka değerine zarar verecek paylaşım yapması
-   - Başvuruda gerçeğe aykırı bilgi verdiğinin tespiti
-
-7.3. Fesih durumunda Influencer'a ait birikmiş ödemeler varsa hesaplanarak tasfiye edilir.
-
-─────────────────────────────────────────
-
-MADDE 8 — KİŞİSEL VERİLER
-
-8.1. Influencer'ın kişisel verileri, 6698 sayılı Kişisel Verilerin Korunması Kanunu ("KVKK") kapsamında işlenir.
-
-8.2. Veriler; sözleşme yükümlülüklerinin yerine getirilmesi, ödeme işlemleri ve yasal yükümlülüklerin karşılanması amacıyla kullanılır.
-
-8.3. Influencer, kişisel verileri üzerindeki hakları için kvkk@tekera21.com adresine başvurabilir.
-
-─────────────────────────────────────────
-
-MADDE 9 — UYGULANACAK HUKUK VE YETKİLİ MAHKEME
-
-9.1. İşbu sözleşme Türk Hukuku'na tabidir.
-
-9.2. Sözleşmeden doğacak uyuşmazlıklarda İstanbul Mahkemeleri ve İcra Daireleri yetkilidir.
-
-─────────────────────────────────────────
-
-MADDE 10 — YÜRÜRLÜK
-
-İşbu sözleşme, Influencer'ın dijital onay vermesiyle yürürlüğe girer ve her iki tarafça bağlayıcı kabul edilir.
-
-─────────────────────────────────────────
-
-Tekera Teknoloji Ticaret ve Sanayi Limited Şirketi
-tekera21.com | destek@tekera21.com`;
-
 // ─── Sözleşme Modalı ─────────────────────────────────────────────────────────
 
 function ContractModal({
@@ -163,11 +48,15 @@ function ContractModal({
   onAccept,
   onClose,
   accepting,
+  contract,
+  contractLoading,
 }: {
   visible: boolean;
   onAccept: () => void;
   onClose: () => void;
   accepting: boolean;
+  contract: InfluencerContractInfo | null;
+  contractLoading: boolean;
 }) {
   const [scrolledToBottom, setScrolledToBottom] = useState(true);
 
@@ -187,7 +76,12 @@ function ContractModal({
               <View style={cm.headerIcon}>
                 <Ionicons name="document-text" size={16} color={P} />
               </View>
-              <Text style={cm.headerTitle}>Influencer Sözleşmesi</Text>
+              <View>
+                <Text style={cm.headerTitle}>{contract?.title ?? 'Influencer Sözleşmesi'}</Text>
+                {contract?.version && (
+                  <Text style={cm.headerVersion}>v{contract.version}</Text>
+                )}
+              </View>
             </View>
             <Pressable onPress={onClose} hitSlop={12}>
               <Ionicons name="close" size={22} color="#3D3660" />
@@ -208,7 +102,13 @@ function ContractModal({
             scrollEventThrottle={16}
             showsVerticalScrollIndicator
           >
-            <Text style={cm.contractText}>{CONTRACT_TEXT}</Text>
+            {contractLoading ? (
+              <ActivityIndicator size="large" color={P} style={{ marginTop: 32 }} />
+            ) : contract ? (
+              <Text style={cm.contractText}>{contract.content}</Text>
+            ) : (
+              <Text style={cm.contractText}>Sözleşme yüklenemedi. Lütfen tekrar deneyin.</Text>
+            )}
             <View style={{ height: 24 }} />
           </ScrollView>
 
@@ -217,10 +117,10 @@ function ContractModal({
             <Pressable
               style={[
                 cm.acceptBtn,
-                (!scrolledToBottom || accepting) && cm.acceptBtnDisabled,
+                (!scrolledToBottom || accepting || !contract) && cm.acceptBtnDisabled,
               ]}
               onPress={onAccept}
-              disabled={!scrolledToBottom || accepting}
+              disabled={!scrolledToBottom || accepting || !contract}
             >
               {accepting ? (
                 <ActivityIndicator color="#fff" size="small" />
@@ -254,6 +154,8 @@ export default function InfluencerStatusScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [contractVisible, setContractVisible] = useState(false);
   const [accepting, setAccepting] = useState(false);
+  const [contract, setContract] = useState<InfluencerContractInfo | null>(null);
+  const [contractLoading, setContractLoading] = useState(false);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -265,6 +167,18 @@ export default function InfluencerStatusScreen() {
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+  }, []);
+
+  const loadContract = useCallback(async () => {
+    setContractLoading(true);
+    try {
+      const data = await getInfluencerContract();
+      setContract(data);
+    } catch {
+      // sözleşme yüklenemedi
+    } finally {
+      setContractLoading(false);
     }
   }, []);
 
@@ -329,6 +243,8 @@ export default function InfluencerStatusScreen() {
         onAccept={handleAcceptContract}
         onClose={() => setContractVisible(false)}
         accepting={accepting}
+        contract={contract}
+        contractLoading={contractLoading}
       />
 
       <View style={s.topBar}>
@@ -472,7 +388,7 @@ export default function InfluencerStatusScreen() {
         {needsContract && (
           <Pressable
             style={({ pressed }) => [s.actionBtn, s.contractBtn, pressed && { opacity: 0.82 }]}
-            onPress={() => setContractVisible(true)}
+            onPress={() => { loadContract(); setContractVisible(true); }}
           >
             <Ionicons name="document-text-outline" size={20} color="#fff" />
             <Text style={s.actionBtnText}>Sözleşmeyi Görüntüle ve Onayla</Text>
@@ -682,6 +598,7 @@ const cm = StyleSheet.create({
     justifyContent: 'center',
   },
   headerTitle: { fontSize: 16, fontWeight: '700', color: '#1C1631' },
+  headerVersion: { fontSize: 11, color: '#8B87A8', marginTop: 1 },
 
   scrollHint: {
     flexDirection: 'row',

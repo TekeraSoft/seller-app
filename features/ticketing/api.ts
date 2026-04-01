@@ -83,6 +83,44 @@ export async function fetchTicketById(ticketingId: string): Promise<TicketingIte
   return mapTicket(data ?? {}, 0);
 }
 
+export async function createInfluencerTicket(message: string): Promise<CreateTicketResult> {
+  const form = new FormData();
+  form.append('message', message);
+
+  const { data } = await api.post<RawApiResponse>('/ticketing/createCustomerTicket', form, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+
+  return {
+    message: toOptionalNonEmptyString(data?.message) ?? 'Destek talebi oluşturuldu.',
+    statusCode: typeof data?.statusCode === 'number' ? data.statusCode : null,
+  };
+}
+
+export async function fetchInfluencerTickets(params: { page: number; size: number }): Promise<TicketingPage> {
+  const { data } = await api.get<RawTicketingPage>('/ticketing/getAllCustomerTicketing', {
+    params: {
+      page: params.page,
+      size: params.size,
+    },
+  });
+
+  const contentRaw = Array.isArray(data?.content) ? data.content : [];
+  const content = contentRaw.map((item, index) => mapTicket(item, index));
+
+  return {
+    content,
+    number: typeof data?.number === 'number' ? data.number : params.page,
+    size: typeof data?.size === 'number' ? data.size : params.size,
+    totalElements: typeof data?.totalElements === 'number' ? data.totalElements : content.length,
+    totalPages: typeof data?.totalPages === 'number' ? data.totalPages : 0,
+    first: data?.first === true,
+    last: data?.last === true,
+  };
+}
+
 export async function createSellerTicket(message: string): Promise<CreateTicketResult> {
   const form = new FormData();
   form.append('message', message);

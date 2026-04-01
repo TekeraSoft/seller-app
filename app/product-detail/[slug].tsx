@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,6 +13,8 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 
 import { decode } from 'html-entities';
 import RenderHtml from 'react-native-render-html';
@@ -100,6 +103,56 @@ export default function ProductDetailScreen() {
   const [linkCreating, setLinkCreating] = useState(false);
   const [linkCreated, setLinkCreated] = useState(false);
   const [linkChecked, setLinkChecked] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownloadImage = async (imageUrl: string) => {
+    try {
+      const ext = imageUrl.split('.').pop()?.split('?')[0] || 'jpg';
+      const fileName = `tekera21_${Date.now()}.${ext}`;
+      const fileUri = FileSystem.cacheDirectory + fileName;
+
+      const { uri } = await FileSystem.downloadAsync(imageUrl, fileUri);
+      await Sharing.shareAsync(uri);
+    } catch {
+      Alert.alert('Hata', 'Görsel indirilemedi');
+    }
+  };
+
+  const handleDownloadAllImages = async () => {
+    const imgs = selectedVariant?.imageUrls ?? [];
+    if (imgs.length === 0) return;
+    setDownloading(true);
+    try {
+      const downloads = await Promise.all(
+        imgs.map(async (img, i) => {
+          const url = resolvePublicAssetUrl(img);
+          const ext = img.split('.').pop()?.split('?')[0] || 'jpg';
+          const fileName = `tekera21_${detail?.catalogId ?? 'product'}_${i + 1}.${ext}`;
+          const fileUri = FileSystem.cacheDirectory + fileName;
+          const { uri } = await FileSystem.downloadAsync(url, fileUri);
+          return uri;
+        })
+      );
+      // Tek tek paylaş (expo-sharing tek dosya destekler, ilkini paylaşalım)
+      if (downloads.length === 1) {
+        await Sharing.shareAsync(downloads[0]);
+      } else {
+        // Çoklu dosya için sırayla paylaş uyarısı
+        Alert.alert(
+          'Görseller İndirildi',
+          `${downloads.length} görsel indirildi. Paylaşmak için seçin.`,
+          downloads.map((uri, i) => ({
+            text: `Görsel ${i + 1}`,
+            onPress: () => Sharing.shareAsync(uri),
+          })).concat([{ text: 'Kapat', onPress: () => {} }])
+        );
+      }
+    } catch {
+      Alert.alert('Hata', 'Görseller indirilemedi');
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   useEffect(() => {
     if (!detail?.catalogId) return;
@@ -219,6 +272,15 @@ export default function ProductDetailScreen() {
               </AppText>
             </View>
           )}
+          {currentImage && (
+            <Pressable
+              style={s.downloadBadge}
+              onPress={() => handleDownloadImage(currentImage)}
+              hitSlop={8}
+            >
+              <Ionicons name="download-outline" size={18} color="#fff" />
+            </Pressable>
+          )}
         </View>
 
         {/* Küçük Görseller */}
@@ -234,6 +296,24 @@ export default function ProductDetailScreen() {
               </Pressable>
             ))}
           </ScrollView>
+        )}
+
+        {/* Görselleri İndir */}
+        {images.length > 0 && (
+          <Pressable
+            style={[s.downloadAllBtn, downloading && { opacity: 0.6 }]}
+            onPress={handleDownloadAllImages}
+            disabled={downloading}
+          >
+            {downloading ? (
+              <ActivityIndicator size="small" color={P} />
+            ) : (
+              <Ionicons name="images-outline" size={16} color={P} />
+            )}
+            <AppText style={s.downloadAllText}>
+              {downloading ? 'İndiriliyor...' : `Tüm Görselleri İndir (${images.length})`}
+            </AppText>
+          </Pressable>
         )}
 
         {/* Ürün Bilgileri */}
@@ -484,6 +564,17 @@ const s = StyleSheet.create({
     paddingVertical: 4,
   },
   discountText: { fontSize: 12, fontWeight: '700', color: '#fff' },
+  downloadBadge: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
   thumbList: { paddingHorizontal: 12, paddingVertical: 10, gap: 8 },
   thumbWrap: {
@@ -496,6 +587,26 @@ const s = StyleSheet.create({
   },
   thumbActive: { borderColor: P },
   thumbImg: { width: '100%', height: '100%' },
+
+  downloadAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginHorizontal: 16,
+    marginTop: 4,
+    marginBottom: 4,
+    paddingVertical: 10,
+    backgroundColor: 'rgba(141,115,255,0.08)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#DDD7FF',
+  },
+  downloadAllText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: P,
+  },
 
   infoSection: { padding: 16 },
   productName: {
