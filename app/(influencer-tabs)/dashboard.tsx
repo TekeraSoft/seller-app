@@ -2,12 +2,27 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  Share,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { Fonts } from '@/constants/theme';
-import { getInfluencerDashboard, InfluencerDashboardDto } from '@/features/influencer/api';
+import {
+  createSellerReferralLink,
+  getInfluencerDashboard,
+  getMySellerReferrals,
+  InfluencerDashboardDto,
+  InfluencerSellerReferralDto,
+  SellerReferralStatus,
+} from '@/features/influencer/api';
 
 const P = '#8D73FF';
 
@@ -30,21 +45,176 @@ function StatCard({ icon, label, value, color }: StatCardProps) {
   );
 }
 
+// ─── Referral durum bilgileri ─────────────────────────────────────────────────
+
+const STATUS_MAP: Record<SellerReferralStatus, { label: string; color: string; icon: keyof typeof Ionicons.glyphMap }> = {
+  PENDING: { label: 'Bekleniyor', color: '#9A96B5', icon: 'hourglass-outline' },
+  REGISTERED: { label: 'Kayıt Oldu', color: '#45B7D1', icon: 'person-add-outline' },
+  DOCUMENTS_PENDING: { label: 'Evrak Bekleniyor', color: '#FFB84D', icon: 'document-text-outline' },
+  UNDER_REVIEW: { label: 'İnceleniyor', color: '#FFB84D', icon: 'search-outline' },
+  APPROVED: { label: 'Onaylandı', color: '#4ECDC4', icon: 'checkmark-circle-outline' },
+  PRODUCTS_ADDING: { label: 'Ürün Ekliyor', color: '#8D73FF', icon: 'cube-outline' },
+  ACTIVE: { label: 'Aktif — Komisyon Süresi', color: '#2ECC71', icon: 'rocket-outline' },
+  EXPIRED: { label: 'Süre Doldu', color: '#9A96B5', icon: 'time-outline' },
+  REJECTED: { label: 'Reddedildi', color: '#FF6B6B', icon: 'close-circle-outline' },
+};
+
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return '-';
+  const d = new Date(dateStr);
+  return `${d.getDate().toString().padStart(2, '0')}.${(d.getMonth() + 1).toString().padStart(2, '0')}.${d.getFullYear()}`;
+}
+
+function ReferralCard({ item }: { item: InfluencerSellerReferralDto }) {
+  const info = STATUS_MAP[item.status];
+  const isPending = item.status === 'PENDING';
+
+  const handleShare = () => {
+    Share.share({
+      message: item.referralUrl,
+      url: item.referralUrl,
+      title: "Tekera'da satıcı ol!",
+    });
+  };
+
+  return (
+    <View style={s.refCard}>
+      {/* Üst: Durum badge + tarih */}
+      <View style={s.refHeader}>
+        <View style={[s.refBadge, { backgroundColor: info.color + '18' }]}>
+          <Ionicons name={info.icon} size={13} color={info.color} />
+          <AppText style={[s.refBadgeText, { color: info.color }]}>{info.label}</AppText>
+        </View>
+        <AppText style={s.refDate}>{formatDate(item.createdAt)}</AppText>
+      </View>
+
+      {/* Satıcı bilgisi veya bekleme mesajı */}
+      {isPending ? (
+        <AppText style={s.refPendingText}>Henüz bir satıcı bu link ile kaydolmadı</AppText>
+      ) : (
+        <View style={s.refBody}>
+          <View style={s.refSellerRow}>
+            <View style={s.refSellerIcon}>
+              <Ionicons name="storefront-outline" size={16} color={P} />
+            </View>
+            <AppText style={s.refSellerName} numberOfLines={1}>
+              {item.referredSellerName ?? 'Satıcı'}
+            </AppText>
+          </View>
+
+          {/* Adım adım ilerleme */}
+          <View style={s.stepsContainer}>
+            <StepItem
+              label="Kayıt"
+              date={item.sellerRegisteredAt}
+              done={!!item.sellerRegisteredAt}
+              active={item.status === 'REGISTERED' || item.status === 'DOCUMENTS_PENDING'}
+            />
+            <StepConnector done={!!item.sellerApprovedAt} />
+            <StepItem
+              label="Onay"
+              date={item.sellerApprovedAt}
+              done={!!item.sellerApprovedAt}
+              active={item.status === 'UNDER_REVIEW'}
+            />
+            <StepConnector done={!!item.minProductsReachedAt} />
+            <StepItem
+              label="Ürünler"
+              subtitle={`${item.sellerProductCount}/${item.minProductCount ?? 0}`}
+              date={item.minProductsReachedAt}
+              done={!!item.minProductsReachedAt}
+              active={item.status === 'PRODUCTS_ADDING' || item.status === 'APPROVED'}
+            />
+            <StepConnector done={item.status === 'ACTIVE' || item.status === 'EXPIRED'} />
+            <StepItem
+              label="Komisyon"
+              date={item.commissionStartsAt}
+              done={item.status === 'ACTIVE' || item.status === 'EXPIRED'}
+              active={item.status === 'ACTIVE'}
+            />
+          </View>
+
+          {/* Komisyon süre bilgisi */}
+          {item.commissionEndsAt && (
+            <View style={s.refCommissionInfo}>
+              <Ionicons name="calendar-outline" size={12} color="#9A96B5" />
+              <AppText style={s.refCommissionText}>
+                Komisyon bitiş: {formatDate(item.commissionEndsAt)}
+              </AppText>
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* Paylaş butonu */}
+      {isPending && (
+        <Pressable style={s.refShareBtn} onPress={handleShare}>
+          <Ionicons name="share-social-outline" size={14} color={P} />
+          <AppText style={s.refShareBtnText}>Linki Paylaş</AppText>
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
+function StepItem({ label, subtitle, date, done, active }: { label: string; subtitle?: string; date: string | null; done: boolean; active: boolean }) {
+  return (
+    <View style={s.stepItem}>
+      <View style={[s.stepDot, done ? s.stepDotDone : active ? s.stepDotActive : s.stepDotPending]} >
+        {done && <Ionicons name="checkmark" size={10} color="#fff" />}
+      </View>
+      <AppText style={[s.stepLabel, done && s.stepLabelDone]}>{label}</AppText>
+      {subtitle && <AppText style={[s.stepSubtitle, done && s.stepLabelDone]}>{subtitle}</AppText>}
+      {date && <AppText style={s.stepDate}>{formatDate(date)}</AppText>}
+    </View>
+  );
+}
+
+function StepConnector({ done }: { done: boolean }) {
+  return <View style={[s.stepConnector, done && s.stepConnectorDone]} />;
+}
+
 
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [stats, setStats] = useState<InfluencerDashboardDto | null>(null);
+  const [referrals, setReferrals] = useState<InfluencerSellerReferralDto[]>([]);
   const [loading, setLoading] = useState(true);
+  const [creatingRef, setCreatingRef] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
-      getInfluencerDashboard()
-        .then(setStats)
+      Promise.all([
+        getInfluencerDashboard(),
+        getMySellerReferrals(),
+      ])
+        .then(([s, r]) => {
+          setStats(s);
+          setReferrals(r);
+        })
         .catch(() => {})
         .finally(() => setLoading(false));
     }, [])
   );
+
+  const handleCreateSellerRef = async () => {
+    setCreatingRef(true);
+    try {
+      const ref = await createSellerReferralLink();
+      setReferrals((prev) => [ref, ...prev.filter((r) => r.id !== ref.id)]);
+      Share.share({
+        message: ref.referralUrl,
+        url: ref.referralUrl,
+        title: "Tekera'da satıcı ol!",
+      });
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || 'Link oluşturulamadı';
+      Alert.alert('Hata', msg);
+    } finally {
+      setCreatingRef(false);
+    }
+  };
 
   return (
     <ScrollView
@@ -78,6 +248,38 @@ export default function DashboardScreen() {
           <StatCard icon="people-outline" label="Toplam Ziyaretçi" value={String(stats?.totalVisitors ?? 0)} color="#4ECDC4" />
           <StatCard icon="checkmark-circle-outline" label="Dönüşüm" value={String(stats?.totalConversions ?? 0)} color="#45B7D1" />
         </View>
+      )}
+
+      {/* Satıcı Davet Linki */}
+      <AppText style={s.sectionTitle}>Satıcı Davet Et</AppText>
+      <Pressable
+        style={[s.inviteBtn, creatingRef && { opacity: 0.7 }]}
+        onPress={handleCreateSellerRef}
+        disabled={creatingRef}
+      >
+        {creatingRef ? (
+          <ActivityIndicator size="small" color="#fff" />
+        ) : (
+          <>
+            <Ionicons name="storefront-outline" size={20} color="#fff" />
+            <AppText style={s.inviteBtnText}>Satıcı Davet Linki Oluştur</AppText>
+          </>
+        )}
+      </Pressable>
+      <AppText style={s.inviteHint}>
+        Davet ettiğiniz satıcı kayıt olup belirlenen minimum ürün sayısına ulaştığında, komisyon süresi boyunca satışlarından kazanç elde edersiniz.
+      </AppText>
+
+      {/* Davet Edilen Satıcılar */}
+      {referrals.length > 0 && (
+        <>
+          <AppText style={s.sectionTitle}>Davet Edilen Satıcılar</AppText>
+          <View style={s.refList}>
+            {referrals.map((r) => (
+              <ReferralCard key={r.id} item={r} />
+            ))}
+          </View>
+        </>
       )}
 
       {/* Hızlı İşlemler */}
@@ -177,6 +379,172 @@ const s = StyleSheet.create({
     marginTop: 2,
   },
 
+  // ─── Satıcı Davet ──────────────────────────────────────────────────────────
+  inviteBtn: {
+    height: 50,
+    borderRadius: 14,
+    backgroundColor: '#FF9F43',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  inviteBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  inviteHint: {
+    fontSize: 12,
+    color: '#9A96B5',
+    lineHeight: 18,
+    marginBottom: 24,
+  },
+
+  // ─── Referral Kartları ──────────────────────────────────────────────────────
+  refList: {
+    gap: 10,
+    marginBottom: 24,
+  },
+  refCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#F0EEFF',
+  },
+  refHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  refBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  refBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  refDate: {
+    fontSize: 11,
+    color: '#9A96B5',
+  },
+  refPendingText: {
+    fontSize: 13,
+    color: '#9A96B5',
+    marginBottom: 10,
+  },
+  refBody: {
+    gap: 10,
+  },
+  refSellerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  refSellerIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: 'rgba(141,115,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  refSellerName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1C1631',
+    flex: 1,
+  },
+  refShareBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(141,115,255,0.08)',
+  },
+  refShareBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: P,
+  },
+  refCommissionInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  refCommissionText: {
+    fontSize: 11,
+    color: '#9A96B5',
+  },
+
+  // ─── Step Tracker ───────────────────────────────────────────────────────────
+  stepsContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  stepItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  stepDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  stepDotDone: {
+    backgroundColor: '#4ECDC4',
+  },
+  stepDotActive: {
+    backgroundColor: P,
+  },
+  stepDotPending: {
+    backgroundColor: '#E8E5F5',
+  },
+  stepLabel: {
+    fontSize: 9,
+    color: '#9A96B5',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  stepSubtitle: {
+    fontSize: 10,
+    color: '#8D73FF',
+    fontWeight: '800',
+    textAlign: 'center',
+    fontFamily: Fonts.rounded,
+  },
+  stepLabelDone: {
+    color: '#4ECDC4',
+  },
+  stepDate: {
+    fontSize: 8,
+    color: '#C8C4E0',
+    marginTop: 1,
+  },
+  stepConnector: {
+    height: 2,
+    flex: 0.5,
+    backgroundColor: '#E8E5F5',
+    marginTop: 9,
+  },
+  stepConnectorDone: {
+    backgroundColor: '#4ECDC4',
+  },
+
+  // ─── Hızlı İşlemler ────────────────────────────────────────────────────────
   quickActions: {
     flexDirection: 'row',
     gap: 12,

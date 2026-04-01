@@ -23,7 +23,7 @@ import {
   SellerListingDto,
   fetchCatalogDetail,
 } from '@/features/influencer/product-api';
-import { createInfluencerLink } from '@/features/influencer/api';
+import { createInfluencerLink, getMyLinks } from '@/features/influencer/api';
 import { Share } from 'react-native';
 import { resolvePublicAssetUrl } from '@/features/seller/mappers';
 
@@ -98,12 +98,24 @@ export default function ProductDetailScreen() {
   }, [slug]);
 
   const [linkCreating, setLinkCreating] = useState(false);
+  const [linkCreated, setLinkCreated] = useState(false);
+  const [linkChecked, setLinkChecked] = useState(false);
+
+  useEffect(() => {
+    if (!detail?.catalogId) return;
+    getMyLinks().then((links) => {
+      if (links.some((l) => l.catalogId === detail.catalogId && l.active)) {
+        setLinkCreated(true);
+      }
+    }).catch(() => {}).finally(() => setLinkChecked(true));
+  }, [detail?.catalogId]);
 
   const handleLink = async () => {
-    if (!detail?.catalogId) return;
+    if (!detail?.catalogId || linkCreated) return;
     setLinkCreating(true);
     try {
       const link = await createInfluencerLink(detail.catalogId);
+      setLinkCreated(true);
       Alert.alert(
         'Referans Linki Oluşturuldu',
         link.referralUrl,
@@ -341,16 +353,27 @@ export default function ProductDetailScreen() {
 
       {/* Alt Buton */}
       <View style={[s.bottomBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-        <Pressable style={[s.linkBtn, linkCreating && { opacity: 0.7 }]} onPress={handleLink} disabled={linkCreating}>
-          {linkCreating ? (
+        {!linkChecked ? (
+          <View style={[s.linkBtn, { opacity: 0.5 }]}>
             <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <>
-              <Ionicons name="link" size={20} color="#fff" />
-              <AppText style={s.linkBtnText}>Referans Linki Oluştur</AppText>
-            </>
-          )}
-        </Pressable>
+          </View>
+        ) : linkCreated ? (
+          <View style={s.linkBtnCreated}>
+            <Ionicons name="checkmark-circle" size={20} color="#fff" />
+            <AppText style={s.linkBtnText}>Oluşturuldu</AppText>
+          </View>
+        ) : (
+          <Pressable style={[s.linkBtn, linkCreating && { opacity: 0.7 }]} onPress={handleLink} disabled={linkCreating}>
+            {linkCreating ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Ionicons name="link" size={20} color="#fff" />
+                <AppText style={s.linkBtnText}>Referans Linki Oluştur</AppText>
+              </>
+            )}
+          </Pressable>
+        )}
       </View>
     </View>
   );
@@ -569,6 +592,15 @@ const s = StyleSheet.create({
     height: 52,
     borderRadius: 16,
     backgroundColor: P,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  linkBtnCreated: {
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: '#4ECDC4',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

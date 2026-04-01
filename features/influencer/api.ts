@@ -124,6 +124,7 @@ export type InfluencerLinkDto = {
   catalogName: string | null;
   catalogSlug: string | null;
   catalogImage: string | null;
+  categoryName: string | null;
   uniqueCode: string;
   referralUrl: string;
   clickCount: number;
@@ -162,4 +163,109 @@ export async function deactivateLink(linkId: string): Promise<void> {
 export async function getInfluencerDashboard(): Promise<InfluencerDashboardDto> {
   const res = await api.get<ApiResponse<InfluencerDashboardDto>>('/influencer/dashboard');
   return res.data?.data ?? { totalLinks: 0, totalClicks: 0, totalVisitors: 0, totalConversions: 0 };
+}
+
+// ─── Satıcı Referral API'leri ────────────────────────────────────────────────
+
+export type SellerReferralStatus =
+  | 'PENDING'
+  | 'REGISTERED'
+  | 'DOCUMENTS_PENDING'
+  | 'UNDER_REVIEW'
+  | 'APPROVED'
+  | 'PRODUCTS_ADDING'
+  | 'ACTIVE'
+  | 'EXPIRED'
+  | 'REJECTED';
+
+export type InfluencerSellerReferralDto = {
+  id: string;
+  uniqueCode: string;
+  referralUrl: string;
+  status: SellerReferralStatus;
+  referredSellerName: string | null;
+  sellerRegisteredAt: string | null;
+  sellerApprovedAt: string | null;
+  minProductsReachedAt: string | null;
+  commissionStartsAt: string | null;
+  commissionEndsAt: string | null;
+  sellerProductCount: number;
+  minProductCount: number;
+  active: boolean;
+  createdAt: string | null;
+};
+
+export async function createSellerReferralLink(): Promise<InfluencerSellerReferralDto> {
+  const res = await api.post<ApiResponse<InfluencerSellerReferralDto>>('/influencer/seller-referral');
+  if (!res.data?.data) throw new Error('Link oluşturulamadı');
+  return res.data.data;
+}
+
+export async function getMySellerReferrals(): Promise<InfluencerSellerReferralDto[]> {
+  const res = await api.get<ApiResponse<InfluencerSellerReferralDto[]>>('/influencer/seller-referrals');
+  return res.data?.data ?? [];
+}
+
+// ─── Kazanç API'leri ─────────────────────────────────────────────────────────
+
+export type InfluencerCommissionStatus = 'PENDING' | 'RETURN_PERIOD' | 'READY' | 'PAID' | 'CANCELLED';
+export type InfluencerCommissionType = 'PRODUCT_REFERRAL' | 'SELLER_REFERRAL';
+
+export type InfluencerCommissionDto = {
+  id: string;
+  commissionType: InfluencerCommissionType;
+  sellerOrderId: string;
+  orderNumber: string | null;
+  sellerName: string | null;
+  productName: string | null;
+  saleAmount: number;
+  platformCommission: number;
+  influencerRate: number;
+  influencerEarning: number;
+  period: number | null;
+  status: InfluencerCommissionStatus;
+  deliveredAt: string | null;
+  returnDeadline: string | null;
+  readyAt: string | null;
+  paidAt: string | null;
+  createdAt: string | null;
+};
+
+export type InfluencerEarningsSummaryDto = {
+  totalEarning: number;
+  pendingEarning: number;
+  readyEarning: number;
+  paidEarning: number;
+  cancelledEarning: number;
+  totalCount: number;
+  commissions: InfluencerCommissionDto[];
+};
+
+// ─── Sözleşme API ────────────────────────────────────────────────────────────
+
+export type PlatformContractDto = {
+  id: string;
+  contractType: string;
+  title: string;
+  content: string;
+  version: string;
+  status: string;
+  publishedAt: string | null;
+};
+
+export async function getActiveContract(type: string): Promise<PlatformContractDto | null> {
+  try {
+    const res = await api.get<ApiResponse<PlatformContractDto>>(`/contracts/active/${type}`);
+    return res.data?.data ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function getEarningsSummary(): Promise<InfluencerEarningsSummaryDto> {
+  const res = await api.get<ApiResponse<InfluencerEarningsSummaryDto>>('/influencer/earnings');
+  return res.data?.data ?? {
+    totalEarning: 0, pendingEarning: 0, readyEarning: 0, paidEarning: 0,
+    cancelledEarning: 0, totalCount: 0, commissions: [],
+  };
 }
