@@ -278,8 +278,31 @@ export async function getActiveContract(type: string): Promise<PlatformContractD
   }
 }
 
-export async function getEarningsSummary(): Promise<InfluencerEarningsSummaryDto> {
-  const res = await api.get<ApiResponse<InfluencerEarningsSummaryDto>>('/influencer/earnings');
+export type InfluencerLevel = 'MICRO' | 'MID' | 'MACRO';
+
+export interface MonthlyProgressDto {
+  year: number;
+  month: number;
+  level: InfluencerLevel;
+  target: number;
+  achieved: number;
+  bonusActive: boolean;
+  currentRate: number;
+  bonusRate: number;
+}
+
+export async function getMonthlyProgress(): Promise<MonthlyProgressDto> {
+  const res = await api.get<ApiResponse<MonthlyProgressDto>>('/influencer/monthly-progress');
+  return res.data?.data ?? {
+    year: new Date().getFullYear(), month: new Date().getMonth() + 1,
+    level: 'MICRO', target: 10, achieved: 0, bonusActive: false,
+    currentRate: 0.10, bonusRate: 0.15,
+  };
+}
+
+export async function getEarningsSummary(status?: InfluencerCommissionStatus): Promise<InfluencerEarningsSummaryDto> {
+  const params = status ? `?status=${status}` : '';
+  const res = await api.get<ApiResponse<InfluencerEarningsSummaryDto>>(`/influencer/earnings${params}`);
   return res.data?.data ?? {
     totalEarning: 0, pendingEarning: 0, readyEarning: 0, paidEarning: 0,
     cancelledEarning: 0, totalCount: 0, commissions: [],

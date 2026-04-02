@@ -33,19 +33,35 @@ function formatDate(d: string | null): string {
   return `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1).toString().padStart(2, '0')}.${date.getFullYear()}`;
 }
 
+type FilterOption = { key: InfluencerCommissionStatus | 'ALL'; label: string };
+
+const FILTERS: FilterOption[] = [
+  { key: 'ALL', label: 'Tümü' },
+  { key: 'RETURN_PERIOD', label: 'İade Sürecinde' },
+  { key: 'READY', label: 'Hazır' },
+  { key: 'PAID', label: 'Ödendi' },
+  { key: 'CANCELLED', label: 'İptal' },
+];
+
 export default function EarningsScreen() {
   const insets = useSafeAreaInsets();
   const [data, setData] = useState<InfluencerEarningsSummaryDto | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeFilter, setActiveFilter] = useState<InfluencerCommissionStatus | 'ALL'>('ALL');
+
+  const fetchData = useCallback((filter: InfluencerCommissionStatus | 'ALL') => {
+    setLoading(true);
+    const status = filter === 'ALL' ? undefined : filter;
+    getEarningsSummary(status)
+      .then(setData)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
-      setLoading(true);
-      getEarningsSummary()
-        .then(setData)
-        .catch(() => {})
-        .finally(() => setLoading(false));
-    }, [])
+      fetchData(activeFilter);
+    }, [activeFilter])
   );
 
   if (loading) {
@@ -137,6 +153,25 @@ export default function EarningsScreen() {
           </View>
 
           <AppText style={s.sectionTitle}>İşlem Geçmişi ({summary.totalCount})</AppText>
+
+          {/* Filtre Chip'leri */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.filterRow} contentContainerStyle={s.filterContent}>
+            {FILTERS.map((f) => {
+              const active = activeFilter === f.key;
+              return (
+                <View
+                  key={f.key}
+                  style={[s.filterChip, active && s.filterChipActive]}
+                  onTouchEnd={() => {
+                    setActiveFilter(f.key);
+                    fetchData(f.key);
+                  }}
+                >
+                  <AppText style={[s.filterChipText, active && s.filterChipTextActive]}>{f.label}</AppText>
+                </View>
+              );
+            })}
+          </ScrollView>
         </View>
       }
       ListEmptyComponent={
@@ -208,8 +243,34 @@ const s = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#1C1631',
-    marginBottom: 12,
+    marginBottom: 8,
     paddingHorizontal: 0,
+  },
+  filterRow: {
+    marginBottom: 12,
+  },
+  filterContent: {
+    gap: 6,
+  },
+  filterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E8E6F0',
+  },
+  filterChipActive: {
+    backgroundColor: P,
+    borderColor: P,
+  },
+  filterChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#9A96B5',
+  },
+  filterChipTextActive: {
+    color: '#FFFFFF',
   },
 
   // ─── İşlem kartı ────────────────────────────────────────────────────

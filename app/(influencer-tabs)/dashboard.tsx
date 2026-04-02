@@ -18,9 +18,11 @@ import { Fonts } from '@/constants/theme';
 import {
   createSellerReferralLink,
   getInfluencerDashboard,
+  getMonthlyProgress,
   getMySellerReferrals,
   InfluencerDashboardDto,
   InfluencerSellerReferralDto,
+  MonthlyProgressDto,
   SellerReferralStatus,
 } from '@/features/influencer/api';
 
@@ -170,6 +172,33 @@ function StepItem({ label, subtitle, date, done, active }: { label: string; subt
   );
 }
 
+const LEVEL_INFO: Record<string, { label: string; color: string; bg: string; icon: keyof typeof Ionicons.glyphMap }> = {
+  MICRO: { label: 'Başlangıç', color: '#9A96B5', bg: '#F5F4FA', icon: 'leaf-outline' },
+  MID: { label: 'Orta', color: '#45B7D1', bg: '#E8F8FD', icon: 'flame-outline' },
+  MACRO: { label: 'Profesyonel', color: '#F59E0B', bg: '#FEF3C7', icon: 'diamond-outline' },
+};
+
+function LevelBadge({ level, bonusActive, currentRate }: { level: string; bonusActive: boolean; currentRate: number }) {
+  const info = LEVEL_INFO[level] ?? LEVEL_INFO.MICRO;
+  return (
+    <View style={s.levelCard}>
+      <View style={[s.levelIconWrap, { backgroundColor: info.bg }]}>
+        <Ionicons name={info.icon} size={22} color={info.color} />
+      </View>
+      <View style={s.levelContent}>
+        <AppText style={[s.levelLabel, { color: info.color }]}>{info.label}</AppText>
+        <AppText style={s.levelRate}>Komisyon: %{(currentRate * 100).toFixed(0)}</AppText>
+      </View>
+      {bonusActive && (
+        <View style={s.levelBonusBadge}>
+          <Ionicons name="star" size={12} color="#F59E0B" />
+          <AppText style={s.levelBonusText}>Bonus</AppText>
+        </View>
+      )}
+    </View>
+  );
+}
+
 function StepConnector({ done }: { done: boolean }) {
   return <View style={[s.stepConnector, done && s.stepConnectorDone]} />;
 }
@@ -179,6 +208,7 @@ export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [stats, setStats] = useState<InfluencerDashboardDto | null>(null);
+  const [progress, setProgress] = useState<MonthlyProgressDto | null>(null);
   const [referrals, setReferrals] = useState<InfluencerSellerReferralDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [creatingRef, setCreatingRef] = useState(false);
@@ -188,10 +218,12 @@ export default function DashboardScreen() {
       Promise.all([
         getInfluencerDashboard(),
         getMySellerReferrals(),
+        getMonthlyProgress(),
       ])
-        .then(([s, r]) => {
+        .then(([s, r, p]) => {
           setStats(s);
           setReferrals(r);
+          setProgress(p);
         })
         .catch(() => {})
         .finally(() => setLoading(false));
@@ -235,6 +267,9 @@ export default function DashboardScreen() {
         </View>
       </View>
 
+      {/* Seviye Rozeti */}
+      {progress && <LevelBadge level={progress.level} bonusActive={progress.bonusActive} currentRate={progress.currentRate} />}
+
       {/* Istatistikler */}
       <AppText style={s.sectionTitle}>Genel Bakış</AppText>
       {loading ? (
@@ -248,6 +283,41 @@ export default function DashboardScreen() {
           <StatCard icon="people-outline" label="Toplam Ziyaretçi" value={String(stats?.totalVisitors ?? 0)} color="#4ECDC4" />
           <StatCard icon="checkmark-circle-outline" label="Dönüşüm" value={String(stats?.totalConversions ?? 0)} color="#45B7D1" />
         </View>
+      )}
+
+      {/* Aylık Hedef İlerleme */}
+      {progress && (
+        <>
+          <AppText style={s.sectionTitle}>Aylık Hedef</AppText>
+          <View style={s.targetCard}>
+            <View style={s.targetHeader}>
+              <View style={s.targetLeft}>
+                <AppText style={s.targetMonth}>
+                  {new Date(progress.year, progress.month - 1).toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' })}
+                </AppText>
+                <View style={[s.targetBadge, progress.bonusActive ? s.targetBadgeBonus : s.targetBadgeStd]}>
+                  <Ionicons name={progress.bonusActive ? 'star' : 'star-outline'} size={10} color={progress.bonusActive ? '#F59E0B' : '#9A96B5'} />
+                  <AppText style={[s.targetBadgeText, progress.bonusActive ? { color: '#F59E0B' } : { color: '#9A96B5' }]}>
+                    %{(progress.currentRate * 100).toFixed(0)} komisyon
+                  </AppText>
+                </View>
+              </View>
+              <View style={s.targetRight}>
+                <AppText style={s.targetCount} tone="rounded">{progress.achieved}</AppText>
+                <AppText style={s.targetTotal}>/ {progress.target}</AppText>
+              </View>
+            </View>
+            {/* Progress bar */}
+            <View style={s.progressBarBg}>
+              <View style={[s.progressBarFill, { width: `${Math.min((progress.achieved / progress.target) * 100, 100)}%` }]} />
+            </View>
+            <AppText style={s.targetHint}>
+              {progress.achieved >= progress.target
+                ? `Tebrikler! Hedefinize ulaştınız. Sonraki ay %${(progress.bonusRate * 100).toFixed(0)} komisyon kazanacaksınız!`
+                : `Hedefe ${progress.target - progress.achieved} satış kaldı. Ulaşırsanız sonraki ay %${(progress.bonusRate * 100).toFixed(0)} komisyon kazanırsınız!`}
+            </AppText>
+          </View>
+        </>
       )}
 
       {/* Satıcı Davet Linki */}
@@ -601,5 +671,116 @@ const s = StyleSheet.create({
     fontSize: 13,
     color: '#9A96B5',
     textAlign: 'center',
+  },
+
+  // ─── Seviye Rozeti ────────────────────────────────────────────────────
+  levelCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#F0EEFF',
+    marginBottom: 20,
+    gap: 12,
+  },
+  levelIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  levelContent: { flex: 1 },
+  levelLabel: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  levelRate: {
+    fontSize: 12,
+    color: '#9A96B5',
+    marginTop: 1,
+  },
+  levelBonusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  levelBonusText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#F59E0B',
+  },
+
+  // ─── Aylık Hedef ─────────────────────────────────────────────────────
+  targetCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#F0EEFF',
+    marginBottom: 20,
+  },
+  targetHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  targetLeft: { gap: 6 },
+  targetMonth: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1C1631',
+    textTransform: 'capitalize',
+  },
+  targetBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  targetBadgeStd: { backgroundColor: '#F5F4FA' },
+  targetBadgeBonus: { backgroundColor: '#FEF3C7' },
+  targetBadgeText: { fontSize: 11, fontWeight: '700' },
+  targetRight: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 2,
+  },
+  targetCount: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: P,
+    fontFamily: Fonts.rounded,
+  },
+  targetTotal: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#9A96B5',
+  },
+  progressBarBg: {
+    height: 8,
+    backgroundColor: '#F0EEFF',
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: P,
+    borderRadius: 4,
+  },
+  targetHint: {
+    fontSize: 11,
+    color: '#9A96B5',
+    lineHeight: 16,
   },
 });
