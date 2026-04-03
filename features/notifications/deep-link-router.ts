@@ -5,7 +5,12 @@ const INFLUENCER_ROUTES: Record<string, string> = {
   'influencer://earnings': '/(influencer-tabs)/earnings',
   'influencer://links': '/(influencer-tabs)/links',
   'influencer://products': '/(influencer-tabs)/products',
-  'influencer://profile': '/(influencer-tabs)/profile',
+  'influencer://profile': '/(influencer-tabs)/inf-profile',
+  '/influencer/dashboard': '/(influencer-tabs)/dashboard',
+  '/influencer/earnings': '/(influencer-tabs)/earnings',
+  '/influencer/links': '/(influencer-tabs)/links',
+  '/influencer/referrals': '/(influencer-tabs)/dashboard',
+  '/influencer/apply': '/(influencer-tabs)/dashboard',
 };
 
 /**

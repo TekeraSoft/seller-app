@@ -14,14 +14,12 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { Fonts } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import {
-  closeInfluencerAccount,
   getActiveContract,
   getMyApplication,
   PlatformContractDto,
-  updateInfluencerBankInfo,
+  updateInfluencerBankInfo
 } from '@/features/influencer/api';
 import { InfluencerApplication } from '@/features/influencer/types';
 import {

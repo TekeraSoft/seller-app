@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { Redirect, Tabs, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { Redirect, Tabs, useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -10,6 +10,8 @@ import { Fonts } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { getMyApplication } from '@/features/influencer/api';
 import type { InfluencerApplication } from '@/features/influencer/types';
+import { fetchUnreadNotificationCount } from '@/features/notifications/api';
+import { getLocalUnreadCount } from '@/features/notifications/local-notifications';
 
 const P = '#8D73FF';
 
@@ -62,12 +64,33 @@ function InfluencerTabBar({ state, descriptors, navigation }: BottomTabBarProps)
 function InfluencerHeader() {
   const router = useRouter();
   const [profile, setProfile] = useState<InfluencerApplication | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     getMyApplication()
       .then(setProfile)
       .catch(() => {});
   }, []);
+
+  const loadUnreadCount = useCallback(async () => {
+    try {
+      const [remote, local] = await Promise.all([
+        fetchUnreadNotificationCount(),
+        getLocalUnreadCount(),
+      ]);
+      setUnreadCount(remote + local);
+    } catch {
+      // sessizce devam et
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadUnreadCount();
+      const interval = setInterval(() => void loadUnreadCount(), 30_000);
+      return () => clearInterval(interval);
+    }, [loadUnreadCount])
+  );
 
   const fullName = profile ? `${profile.name} ${profile.surname}` : '';
   const initials = fullName
@@ -95,9 +118,21 @@ function InfluencerHeader() {
           <AppText style={styles.headerSub} tone="mono">Influencer</AppText>
         </View>
       </View>
-      <Pressable onPress={() => router.push('/settings')}>
-        <Ionicons name="settings-outline" size={22} color="#1E1E1E" />
-      </Pressable>
+      <View style={styles.headerRight}>
+        <Pressable onPress={() => router.push('/notifications')} style={styles.notificationButton}>
+          <Ionicons name="notifications-outline" size={22} color="#1E1E1E" />
+          {unreadCount > 0 ? (
+            <View style={styles.unreadBadge}>
+              <AppText style={styles.unreadBadgeText}>
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </AppText>
+            </View>
+          ) : null}
+        </Pressable>
+        <Pressable onPress={() => router.push('/settings')}>
+          <Ionicons name="settings-outline" size={22} color="#1E1E1E" />
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -234,5 +269,31 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#9A9AA3',
     fontFamily: Fonts.mono,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  notificationButton: {
+    position: 'relative',
+  },
+  unreadBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -5,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 999,
+    backgroundColor: '#D7263D',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  unreadBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontFamily: Fonts.sans,
+    fontWeight: '700',
   },
 });

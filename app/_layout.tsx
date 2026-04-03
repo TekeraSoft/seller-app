@@ -1,4 +1,4 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
 import * as SplashScreen from 'expo-splash-screen';
 import { Stack, useRouter } from 'expo-router';
@@ -14,7 +14,6 @@ import { SellerBootstrap } from '@/components/bootstrap/seller-bootstrap';
 import { AuthProvider, useAuth } from '@/context/auth-context';
 import { routeDeepLink, getDefaultRoute } from '@/features/notifications/deep-link-router';
 import { findSellerOrderIdByOrderNo } from '@/features/orders/api';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { store } from '@/store';
 
 function NotificationRouter() {
@@ -104,15 +103,13 @@ function NotificationRouter() {
 }
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
-
   return (
     <AuthProvider>
       <Provider store={store}>
         <SellerBootstrap />
         <VersionGuard />
         <NotificationRouter />
-        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <ThemeProvider value={DefaultTheme}>
           <Stack>
             <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="auth" options={{ title: 'Giriş', headerShown: false }} />
