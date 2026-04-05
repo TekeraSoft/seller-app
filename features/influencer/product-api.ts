@@ -40,10 +40,12 @@ export type SubCategoryDto = {
 export type CatalogFilterResponse = {
   products: {
     content: CatalogListingDto[];
-    totalElements: number;
-    totalPages: number;
-    number: number;
-    last: boolean;
+    page: {
+      size: number;
+      number: number;
+      totalElements: number;
+      totalPages: number;
+    };
   };
   brandNames: string[];
   categories: CategoryDto[];

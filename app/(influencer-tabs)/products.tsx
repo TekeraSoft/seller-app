@@ -146,13 +146,16 @@ export default function ProductsScreen() {
         hasDiscount: onlyDiscount || undefined,
         brandNames: selectedBrands.length > 0 ? selectedBrands : undefined,
         page: pageNum,
-        size: 30,
+        size: 20,
       });
-      const productsData = res?.products ?? res;
+      const productsData = res?.products;
       const items: CatalogListingDto[] = productsData?.content ?? [];
+      const pageInfo = productsData?.page;
+      const totalElements: number = pageInfo?.totalElements ?? 0;
+      const isLast = pageInfo ? (pageInfo.number + 1 >= pageInfo.totalPages) : true;
       setProducts((prev) => (reset ? items : [...prev, ...items]));
-      setHasMore(!(productsData?.last ?? true));
-      setTotalCount(productsData?.totalElements ?? items.length);
+      setHasMore(!isLast);
+      setTotalCount(totalElements);
       setPage(pageNum);
       if (reset && res?.brandNames?.length) {
         setAvailableBrands(res.brandNames);
@@ -362,16 +365,14 @@ export default function ProductsScreen() {
           renderItem={renderProduct}
           contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 100 + insets.bottom }}
           showsVerticalScrollIndicator={false}
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.3}
           ListFooterComponent={
-            hasMore ? (
-              <Pressable style={s.loadMoreBtn} onPress={handleLoadMore} disabled={loadingMore}>
-                {loadingMore ? (
-                  <ActivityIndicator size="small" color={P} />
-                ) : (
-                  <AppText style={s.loadMoreText}>Daha Fazla Yükle</AppText>
-                )}
-              </Pressable>
-            ) : products.length > 0 ? (
+            loadingMore ? (
+              <View style={s.centered}>
+                <ActivityIndicator size="small" color={P} />
+              </View>
+            ) : !hasMore && products.length > 0 ? (
               <View style={s.endOfList}>
                 <AppText style={s.endOfListText}>Tüm ürünler listelendi</AppText>
               </View>
