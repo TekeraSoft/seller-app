@@ -6,7 +6,7 @@ export type InfluencerStatus =
   | 'REJECTED'
   | 'ACTIVE';
 
-export type InfluencerCompanyType = 'SAHIS' | 'LTD';
+export type InfluencerCompanyType = 'BIREYSEL' | 'LTD';
 
 export type InfluencerDocumentType =
   | 'IDENTITY_DOCUMENT'
@@ -14,6 +14,7 @@ export type InfluencerDocumentType =
   | 'SIGNATURE_DECLARATION'
   | 'RESIDENCE_DOCUMENT'
   | 'BANK_ACCOUNT_DOCUMENT'
+  | 'EXEMPTION_CERTIFICATE'
   | 'SIGNATURE_CIRCULAR'
   | 'COMMERCIAL_REGISTER_GAZETTE'
   | 'CERTIFICATE_OF_ACTIVITY'
@@ -60,15 +61,16 @@ export const DOCUMENT_LABELS: Record<InfluencerDocumentType, string> = {
   SIGNATURE_DECLARATION: 'İmza Beyannamesi',
   RESIDENCE_DOCUMENT: 'İkametgah Belgesi',
   BANK_ACCOUNT_DOCUMENT: 'Banka IBAN Belgesi',
+  EXEMPTION_CERTIFICATE: 'İstisna Belgesi',
   SIGNATURE_CIRCULAR: 'İmza Sirküleri',
   COMMERCIAL_REGISTER_GAZETTE: 'Ticaret Sicil Gazetesi',
   CERTIFICATE_OF_ACTIVITY: 'Faaliyet Belgesi',
   AUTHORIZATION_DOCUMENT: 'Yetki Belgesi',
 };
 
-export const SAHIS_DOCUMENTS: InfluencerDocumentType[] = [
+export const BIREYSEL_DOCUMENTS: InfluencerDocumentType[] = [
   'IDENTITY_DOCUMENT',
-  'TAX_CERTIFICATE',
+  'EXEMPTION_CERTIFICATE',
 ];
 
 export const LTD_DOCUMENTS: InfluencerDocumentType[] = [

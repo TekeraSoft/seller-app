@@ -1,10 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
+  Easing,
   Pressable,
   ScrollView,
   Share,
@@ -17,9 +19,11 @@ import { AppText } from '@/components/app-text';
 import { Fonts } from '@/constants/theme';
 import {
   createSellerReferralLink,
+  getExemptionStatus,
   getInfluencerDashboard,
   getMonthlyProgress,
   getMySellerReferrals,
+  ExemptionStatusDto,
   InfluencerDashboardDto,
   InfluencerSellerReferralDto,
   MonthlyProgressDto,
@@ -204,12 +208,36 @@ function StepConnector({ done }: { done: boolean }) {
 }
 
 
+function PulsingAlert() {
+  const opacity = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 0.25, duration: 500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 1, duration: 500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [opacity]);
+
+  return (
+    <View style={s.exemptionIconWrap}>
+      <Animated.View style={{ opacity }}>
+        <Ionicons name="alert-circle" size={28} color="#F59E0B" />
+      </Animated.View>
+    </View>
+  );
+}
+
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [stats, setStats] = useState<InfluencerDashboardDto | null>(null);
   const [progress, setProgress] = useState<MonthlyProgressDto | null>(null);
   const [referrals, setReferrals] = useState<InfluencerSellerReferralDto[]>([]);
+  const [exemption, setExemption] = useState<ExemptionStatusDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [creatingRef, setCreatingRef] = useState(false);
 
@@ -219,11 +247,13 @@ export default function DashboardScreen() {
         getInfluencerDashboard(),
         getMySellerReferrals(),
         getMonthlyProgress(),
+        getExemptionStatus(),
       ])
-        .then(([s, r, p]) => {
+        .then(([s, r, p, e]) => {
           setStats(s);
           setReferrals(r);
           setProgress(p);
+          setExemption(e);
         })
         .catch(() => {})
         .finally(() => setLoading(false));
@@ -254,18 +284,54 @@ export default function DashboardScreen() {
       contentContainerStyle={[s.content, { paddingBottom: 100 + insets.bottom }]}
       showsVerticalScrollIndicator={false}
     >
-      {/* Karşılama */}
-      <View style={s.welcomeCard}>
-        <View style={s.welcomeContent}>
-          <AppText style={s.welcomeTitle} tone="rounded">Hoşgeldiniz!</AppText>
-          <AppText style={s.welcomeSubtitle}>
-            İnfluencer panelinize hoşgeldiniz. Buradan referans linklerinizi yönetebilir ve kazançlarınızı takip edebilirsiniz.
-          </AppText>
+      {/* Karşılama veya İstisna Belgesi Uyarısı */}
+      {exemption && (!exemption.certificateUploaded || exemption.certificateStatus === 'REJECTED' || !exemption.hasBankInfo) ? (
+        <Pressable
+          style={s.exemptionCard}
+          onPress={() => router.push('/influencer/exemption-certificate' as any)}
+        >
+          <PulsingAlert />
+          <View style={s.welcomeContent}>
+            <AppText style={s.exemptionTitle} tone="rounded">
+              İstisna Belgenizi Yükleyin
+            </AppText>
+            <AppText style={s.exemptionSubtitle}>
+              İstisna belgeniz ve bağlı banka hesabınızı ekleyin. Kazançlarınızı alabilmek için bu adım zorunludur.
+            </AppText>
+            <View style={s.exemptionStatus}>
+              <View style={s.exemptionDot}>
+                <Ionicons
+                  name={exemption.certificateUploaded && exemption.certificateStatus !== 'REJECTED' ? 'checkmark-circle' : 'ellipse-outline'}
+                  size={14}
+                  color={exemption.certificateUploaded && exemption.certificateStatus !== 'REJECTED' ? '#4ECDC4' : 'rgba(255,255,255,0.5)'}
+                />
+                <AppText style={s.exemptionDotText}>İstisna Belgesi</AppText>
+              </View>
+              <View style={s.exemptionDot}>
+                <Ionicons
+                  name={exemption.hasBankInfo ? 'checkmark-circle' : 'ellipse-outline'}
+                  size={14}
+                  color={exemption.hasBankInfo ? '#4ECDC4' : 'rgba(255,255,255,0.5)'}
+                />
+                <AppText style={s.exemptionDotText}>Banka Hesabı</AppText>
+              </View>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.5)" />
+        </Pressable>
+      ) : (
+        <View style={s.welcomeCard}>
+          <View style={s.welcomeContent}>
+            <AppText style={s.welcomeTitle} tone="rounded">Hoşgeldiniz!</AppText>
+            <AppText style={s.welcomeSubtitle}>
+              İnfluencer panelinize hoşgeldiniz. Buradan referans linklerinizi yönetebilir ve kazançlarınızı takip edebilirsiniz.
+            </AppText>
+          </View>
+          <View style={s.welcomeIconWrap}>
+            <Ionicons name="sparkles" size={48} color="rgba(255,255,255,0.3)" />
+          </View>
         </View>
-        <View style={s.welcomeIconWrap}>
-          <Ionicons name="sparkles" size={48} color="rgba(255,255,255,0.3)" />
-        </View>
-      </View>
+      )}
 
       {/* Seviye Rozeti */}
       {progress && <LevelBadge level={progress.level} bonusActive={progress.bonusActive} currentRate={progress.currentRate} />}
@@ -406,6 +472,53 @@ const s = StyleSheet.create({
   },
   welcomeIconWrap: {
     marginLeft: 12,
+  },
+
+  // ─── İstisna Belgesi Uyarı Kartı ─────────────────────────────────────
+  exemptionCard: {
+    borderRadius: 20,
+    padding: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    overflow: 'hidden',
+    marginBottom: 24,
+    backgroundColor: '#7C5EFF',
+    gap: 12,
+  },
+  exemptionIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  exemptionTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 4,
+    fontFamily: Fonts.rounded,
+  },
+  exemptionSubtitle: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.8)',
+    lineHeight: 17,
+    marginBottom: 8,
+  },
+  exemptionStatus: {
+    flexDirection: 'row',
+    gap: 14,
+  },
+  exemptionDot: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  exemptionDotText: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.75)',
+    fontWeight: '600',
   },
 
   sectionTitle: {

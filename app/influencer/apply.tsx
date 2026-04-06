@@ -39,15 +39,19 @@ export default function InfluencerApplyScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // If application already exists, go to status page
+  // If application already exists and not rejected, go to status page
   useEffect(() => {
     getMyApplication()
-      .then(() => router.replace('/influencer/status' as any))
+      .then((app) => {
+        if (app.status !== 'REJECTED') {
+          router.replace('/influencer/status' as any);
+        }
+      })
       .catch(() => {}); // No application yet, stay on apply
   }, []);
 
   const [gsmNumber, setGsmNumber] = useState('');
-  const [companyType, setCompanyType] = useState<InfluencerCompanyType>('SAHIS');
+  const [companyType, setCompanyType] = useState<InfluencerCompanyType>('BIREYSEL');
   const [nationalId, setNationalId] = useState('');
   const [taxNumber, setTaxNumber] = useState('');
   const [instagram, setInstagram] = useState('');
@@ -59,7 +63,7 @@ export default function InfluencerApplyScreen() {
 
   function validate() {
     if (gsmNumber.length < 10) return 'Geçerli bir telefon numarası girin.';
-    if (companyType === 'SAHIS' && !nationalId.trim()) return 'TC Kimlik No zorunludur.';
+    if (companyType === 'BIREYSEL' && !nationalId.trim()) return 'TC Kimlik No zorunludur.';
     if (companyType === 'LTD' && !taxNumber.trim()) return 'Vergi No zorunludur.';
     if (!instagram.trim() || !isValidUrl(instagram)) return 'Geçerli bir Instagram linki zorunludur.';
     if (youtube.trim() && !isValidUrl(youtube)) return 'Geçerli bir YouTube linki girin.';
@@ -81,7 +85,7 @@ export default function InfluencerApplyScreen() {
       await applyAsInfluencer({
         gsmNumber: gsmNumber ? `0${gsmNumber}` : '',
         companyType,
-        nationalId: companyType === 'SAHIS' ? nationalId.trim() : undefined,
+        nationalId: companyType === 'BIREYSEL' ? nationalId.trim() : undefined,
         taxNumber: companyType === 'LTD' ? taxNumber.trim() : undefined,
         socialLinks,
       });
@@ -157,30 +161,33 @@ export default function InfluencerApplyScreen() {
               <View style={s.sectionIcon}>
                 <Ionicons name="business" size={14} color={P} />
               </View>
-              <Text style={s.sectionTitle}>Şirket Bilgileri</Text>
+              <Text style={s.sectionTitle}>İşletme Tipi</Text>
             </View>
             <View style={s.field}>
-              <Text style={s.label}>Şirket Tipi</Text>
+              <Text style={s.label}>İşletme Tipiniz</Text>
               <View style={s.segRow}>
-                {(['SAHIS', 'LTD'] as InfluencerCompanyType[]).map(t => (
+                {([
+                  { type: 'BIREYSEL' as InfluencerCompanyType, label: 'Bireysel', icon: 'person-outline' as const },
+                  { type: 'LTD' as InfluencerCompanyType, label: 'Ltd / A.Ş.', icon: 'storefront-outline' as const },
+                ]).map(opt => (
                   <Pressable
-                    key={t}
-                    style={[s.seg, companyType === t && s.segActive]}
-                    onPress={() => { setCompanyType(t); ce(); }}
+                    key={opt.type}
+                    style={[s.seg, companyType === opt.type && s.segActive]}
+                    onPress={() => { setCompanyType(opt.type); ce(); }}
                   >
                     <Ionicons
-                      name={t === 'SAHIS' ? 'person-circle-outline' : 'storefront-outline'}
+                      name={opt.icon}
                       size={15}
-                      color={companyType === t ? '#fff' : '#8B87A8'}
+                      color={companyType === opt.type ? '#fff' : '#8B87A8'}
                     />
-                    <Text style={[s.segText, companyType === t && s.segTextActive]}>
-                      {t === 'SAHIS' ? 'Şahıs' : 'Ltd / A.Ş.'}
+                    <Text style={[s.segText, companyType === opt.type && s.segTextActive]}>
+                      {opt.label}
                     </Text>
                   </Pressable>
                 ))}
               </View>
             </View>
-            {companyType === 'SAHIS' ? (
+            {companyType === 'BIREYSEL' ? (
               <View style={s.field}>
                 <Text style={s.label}>TC Kimlik No</Text>
                 <View style={s.inputRow}>

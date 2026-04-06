@@ -1,6 +1,7 @@
-import { acceptInfluencerContract, getInfluencerContract, getMyApplication } from '@/features/influencer/api';
+import { acceptInfluencerContract, getInfluencerContract, getMyApplication, getMyDocuments } from '@/features/influencer/api';
 import type { InfluencerContractInfo } from '@/features/influencer/api';
-import type { InfluencerApplication, InfluencerStatus } from '@/features/influencer/types';
+import type { InfluencerApplication, InfluencerDocumentStatus, InfluencerStatus } from '@/features/influencer/types';
+import { DOCUMENT_LABELS } from '@/features/influencer/types';
 import { useAuth } from '@/context/auth-context';
 import { refreshAuthSession } from '@/lib/api';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,6 +9,8 @@ import { Redirect, Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
   Modal,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -39,6 +42,25 @@ function getStepIndex(status: InfluencerStatus): number {
     ACTIVE: 4,
   };
   return map[status] ?? 0;
+}
+
+function PulsingIcon({ name, size, color }: { name: keyof typeof Ionicons.glyphMap; size: number; color: string }) {
+  const opacity = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 0.25, duration: 500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 1, duration: 500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [opacity]);
+  return (
+    <Animated.View style={{ opacity }}>
+      <Ionicons name={name} size={size} color={color} />
+    </Animated.View>
+  );
 }
 
 // ─── Sözleşme metni (fallback) ───────────────────────────────────────────────
@@ -272,12 +294,20 @@ export default function InfluencerStatusScreen() {
   const [accepting, setAccepting] = useState(false);
   const [contract, setContract] = useState<InfluencerContractInfo | null>(null);
   const [contractLoading, setContractLoading] = useState(false);
+  const [rejectedDocs, setRejectedDocs] = useState<InfluencerDocumentStatus[]>([]);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
       const data = await getMyApplication();
       setApp(data);
+      // Evrak adımındaysa reddedilen evrakları çek
+      if (data.status === 'PENDING_DOCUMENTS' || data.status === 'PENDING_DOCUMENT_REVIEW') {
+        const docs = await getMyDocuments().catch(() => []);
+        setRejectedDocs(docs.filter((d) => d.verificationStatus === 'REJECTED'));
+      } else {
+        setRejectedDocs([]);
+      }
     } catch {
       // no application
     } finally {
@@ -397,6 +427,13 @@ export default function InfluencerStatusScreen() {
             ) : (
               <Text style={s.rejectedSub}>Daha fazla bilgi için ekibimizle iletişime geçin.</Text>
             )}
+            <Pressable
+              style={({ pressed }) => [s.reapplyBtn, pressed && { opacity: 0.8 }]}
+              onPress={() => router.replace('/influencer/apply' as any)}
+            >
+              <Ionicons name="refresh-outline" size={18} color="#fff" />
+              <Text style={s.reapplyBtnText}>Yeniden Başvuru Yap</Text>
+            </Pressable>
           </View>
         ) : isActive ? (
           <View style={s.activeCard}>
@@ -482,6 +519,27 @@ export default function InfluencerStatusScreen() {
                 </View>
               );
             })}
+          </View>
+        )}
+
+        {/* Reddedilen evraklar */}
+        {rejectedDocs.length > 0 && canUploadDocs && (
+          <View style={s.rejectedDocsCard}>
+            <View style={s.rejectedDocsHeader}>
+              <PulsingIcon name="alert-circle" size={20} color="#D7263D" />
+              <Text style={s.rejectedDocsTitle}>Reddedilen Evraklar</Text>
+            </View>
+            {rejectedDocs.map((doc) => (
+              <View key={doc.documentType} style={s.rejectedDocRow}>
+                <Ionicons name="close-circle" size={14} color="#D7263D" />
+                <View style={{ flex: 1 }}>
+                  <Text style={s.rejectedDocName}>{DOCUMENT_LABELS[doc.documentType] ?? doc.documentType}</Text>
+                  {doc.rejectionNote && (
+                    <Text style={s.rejectedDocNote}>{doc.rejectionNote}</Text>
+                  )}
+                </View>
+              </View>
+            ))}
           </View>
         )}
 
@@ -679,6 +737,51 @@ const s = StyleSheet.create({
     justifyContent: 'center',
   },
   refreshHintText: { fontSize: 11, color: '#9A96B5' },
+
+  rejectedDocsCard: {
+    backgroundColor: 'rgba(215,38,61,0.05)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(215,38,61,0.2)',
+    padding: 14,
+    gap: 10,
+  },
+  rejectedDocsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  rejectedDocsTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#D7263D',
+  },
+  rejectedDocRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: 'rgba(215,38,61,0.06)',
+    borderRadius: 10,
+    padding: 10,
+  },
+  rejectedDocName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#8B2232',
+  },
+  rejectedDocNote: {
+    fontSize: 12,
+    color: '#B91C1C',
+    marginTop: 2,
+    lineHeight: 17,
+  },
+
+  reapplyBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    height: 48, borderRadius: 14, backgroundColor: P,
+    marginTop: 8, width: '100%',
+  },
+  reapplyBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
 });
 
 // ─── Modal stilleri ───────────────────────────────────────────────────────────

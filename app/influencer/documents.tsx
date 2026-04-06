@@ -1,17 +1,20 @@
-import { getMyApplication, getMyDocuments, updateInfluencerBankInfo, uploadInfluencerDocument } from '@/features/influencer/api';
+import { getExemptionStatus, getMyApplication, getMyDocuments, updateCompanyType, updateInfluencerBankInfo, uploadInfluencerDocument, ExemptionStatusDto } from '@/features/influencer/api';
 import {
+  BIREYSEL_DOCUMENTS,
   DOCUMENT_LABELS,
+  InfluencerCompanyType,
   InfluencerDocumentType,
   LTD_DOCUMENTS,
-  SAHIS_DOCUMENTS,
 } from '@/features/influencer/types';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { Stack, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
+  Easing,
   FlatList,
   KeyboardAvoidingView,
   Modal,
@@ -199,6 +202,25 @@ const ms = StyleSheet.create({
   emptyText: { color: '#9A96B5', fontSize: 14 },
 });
 
+function PulsingIcon({ name, size, color }: { name: keyof typeof Ionicons.glyphMap; size: number; color: string }) {
+  const opacity = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 0.25, duration: 500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 1, duration: 500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [opacity]);
+  return (
+    <Animated.View style={{ opacity }}>
+      <Ionicons name={name} size={size} color={color} />
+    </Animated.View>
+  );
+}
+
 // ─── Doc State ────────────────────────────────────────────────────────────────
 
 type DocState = {
@@ -218,7 +240,9 @@ function formatIban(raw: string): string {
 
 export default function InfluencerDocumentsScreen() {
   const router = useRouter();
-  const [companyType, setCompanyType] = useState<'SAHIS' | 'LTD' | null>(null);
+  const [companyType, setCompanyType] = useState<InfluencerCompanyType | null>(null);
+  const [showTypeSelector, setShowTypeSelector] = useState(false);
+  const [changingType, setChangingType] = useState(false);
   const [docs, setDocs] = useState<DocState[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -231,6 +255,46 @@ export default function InfluencerDocumentsScreen() {
   const [bankSaved, setBankSaved] = useState(false);
   const [bankError, setBankError] = useState('');
 
+  // ─── BIREYSEL: İstisna Belgesi state ─────────────────────────────────────
+  const [exemption, setExemption] = useState<ExemptionStatusDto | null>(null);
+  const [uploadingCert, setUploadingCert] = useState(false);
+  const [certFileName, setCertFileName] = useState('');
+  const [showCertInfo, setShowCertInfo] = useState(false);
+
+  const handleCompanyTypeChange = async (type: InfluencerCompanyType) => {
+    setChangingType(true);
+    try {
+      await updateCompanyType(type);
+      setCompanyType(type);
+      setShowTypeSelector(false);
+      const required = type === 'BIREYSEL' ? BIREYSEL_DOCUMENTS : LTD_DOCUMENTS;
+      setDocs(required.map((t) => ({ type: t, status: 'idle' as const, verificationStatus: undefined, rejectionNote: null })));
+    } catch (e: any) {
+      Alert.alert('Hata', e?.response?.data?.message ?? 'İşletme tipi güncellenemedi');
+    } finally {
+      setChangingType(false);
+    }
+  };
+
+  async function pickAndUploadCert() {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf'],
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled || !result.assets?.[0]) return;
+      const asset = result.assets[0];
+      setUploadingCert(true);
+      setCertFileName(asset.name);
+      await uploadInfluencerDocument('EXEMPTION_CERTIFICATE', asset.uri, asset.name, asset.mimeType ?? 'application/octet-stream');
+      setExemption((prev) => prev ? { ...prev, certificateUploaded: true, certificateStatus: 'PENDING', certificateRejectionNote: null } : prev);
+    } catch {
+      Alert.alert('Hata', 'Belge yüklenemedi, tekrar deneyin.');
+    } finally {
+      setUploadingCert(false);
+    }
+  }
+
   const load = useCallback(async () => {
     try {
       const [app, docStatuses] = await Promise.all([
@@ -238,7 +302,8 @@ export default function InfluencerDocumentsScreen() {
         getMyDocuments().catch(() => []),
       ]);
       setCompanyType(app.companyType);
-      const required = app.companyType === 'SAHIS' ? SAHIS_DOCUMENTS : LTD_DOCUMENTS;
+
+      const required = app.companyType === 'BIREYSEL' ? BIREYSEL_DOCUMENTS : LTD_DOCUMENTS;
 
       const statusMap = Object.fromEntries(
         docStatuses.map((d) => [d.documentType, d])
@@ -308,8 +373,12 @@ export default function InfluencerDocumentsScreen() {
 
   async function pickAndUpload(docType: InfluencerDocumentType) {
     try {
+      // İstisna Belgesi sadece PDF
+      const allowedTypes = docType === 'EXEMPTION_CERTIFICATE'
+        ? ['application/pdf']
+        : ['application/pdf', 'image/*'];
       const result = await DocumentPicker.getDocumentAsync({
-        type: ['application/pdf', 'image/*'],
+        type: allowedTypes,
         copyToCacheDirectory: true,
       });
       if (result.canceled || !result.assets?.[0]) return;
@@ -371,13 +440,79 @@ export default function InfluencerDocumentsScreen() {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
+          {/* ─── İşletme Tipi Seçici ─── */}
+          <View style={s.section}>
+            <View style={s.sectionHeader}>
+              <View style={s.sectionIcon}>
+                <Ionicons name="briefcase" size={14} color={PURPLE} />
+              </View>
+              <Text style={s.sectionTitle}>İşletme Tipiniz</Text>
+              {companyType && !showTypeSelector && (
+                <Pressable
+                  onPress={() => setShowTypeSelector(true)}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                >
+                  <Ionicons name="pencil" size={12} color={PURPLE} />
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: PURPLE }}>Değiştir</Text>
+                </Pressable>
+              )}
+            </View>
+
+            {(!companyType || showTypeSelector) ? (
+              <View style={{ gap: 8 }}>
+                <Text style={s.infoText}>
+                  Lütfen işletme tipinizi seçin. Bu seçime göre yüklemeniz gereken evraklar belirlenecektir.
+                </Text>
+                {changingType ? (
+                  <ActivityIndicator size="small" color={PURPLE} style={{ padding: 20 }} />
+                ) : (
+                  <>
+                    {([
+                      { type: 'BIREYSEL' as InfluencerCompanyType, label: 'Bireysel İçerik Üretici', desc: 'Şirketim yok, İstisna Belgesi ile çalışacağım', icon: 'person-outline' as const },
+                      { type: 'LTD' as InfluencerCompanyType, label: 'Ltd / A.Ş.', desc: 'Limited veya anonim şirketim var', icon: 'briefcase-outline' as const },
+                    ]).map((opt) => (
+                      <Pressable
+                        key={opt.type}
+                        style={({ pressed }) => [
+                          s.typeOption,
+                          companyType === opt.type && s.typeOptionActive,
+                          pressed && { opacity: 0.8 },
+                        ]}
+                        onPress={() => handleCompanyTypeChange(opt.type)}
+                      >
+                        <View style={[s.typeOptionIcon, companyType === opt.type && { backgroundColor: 'rgba(141,115,255,0.15)' }]}>
+                          <Ionicons name={opt.icon} size={20} color={companyType === opt.type ? PURPLE : '#9A96B5'} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[s.typeOptionLabel, companyType === opt.type && { color: PURPLE }]}>{opt.label}</Text>
+                          <Text style={s.typeOptionDesc}>{opt.desc}</Text>
+                        </View>
+                        {companyType === opt.type && <Ionicons name="checkmark-circle" size={20} color={PURPLE} />}
+                      </Pressable>
+                    ))}
+                  </>
+                )}
+              </View>
+            ) : (
+              <View style={s.typeSelectedRow}>
+                <Ionicons
+                  name={companyType === 'BIREYSEL' ? 'person-outline' : 'briefcase-outline'}
+                  size={18} color={PURPLE}
+                />
+                <Text style={s.typeSelectedText}>
+                  {companyType === 'BIREYSEL' ? 'Bireysel İçerik Üretici' : 'Ltd / A.Ş.'}
+                </Text>
+              </View>
+            )}
+          </View>
+
           {/* ─── Banka Bilgileri ─── */}
           <View style={s.section}>
             <View style={s.sectionHeader}>
               <View style={s.sectionIcon}>
                 <Ionicons name="card" size={14} color={PURPLE} />
               </View>
-              <Text style={s.sectionTitle}>Banka Bilgileri</Text>
+              <Text style={s.sectionTitle}>{companyType === 'BIREYSEL' ? 'İstisna Hesabı Banka Bilgileri' : 'Banka Bilgileri'}</Text>
               {bankSaved && (
                 <View style={s.savedBadge}>
                   <Ionicons name="checkmark-circle" size={12} color="#4B8D5C" />
@@ -385,6 +520,15 @@ export default function InfluencerDocumentsScreen() {
                 </View>
               )}
             </View>
+
+            {companyType === 'BIREYSEL' && (
+              <View style={s.infoCard}>
+                <PulsingIcon name="warning-outline" size={16} color="#F59E0B" />
+                <Text style={s.infoText}>
+                  Buraya girdiğiniz banka hesabı, <Text style={{ fontWeight: '700' }}>İstisna Belgesi ile açılmış</Text> influencer/içerik üretici hesabı olmalıdır. Kazançlarınız yalnızca bu hesaba aktarılır.{'\n\n'}Bu hesap dışında 1 TL bile tahsilat yapılması halinde istisna kapsamından çıkarsınız. Bu durumda <Text style={{ fontWeight: '700' }}>vergi ziyaı cezası, gecikme faizi ve ek cezai yaptırımlar</Text> uygulanabilir.
+                </Text>
+              </View>
+            )}
 
             {/* IBAN */}
             <View style={s.field}>
@@ -397,15 +541,13 @@ export default function InfluencerDocumentsScreen() {
                   style={s.ibanInput}
                   value={iban.replace(/^TR\s?/i, '')}
                   onChangeText={(v) => {
-                    const raw = v.replace(/\D/g, '');
+                    const raw = v.replace(/[^0-9]/g, '').slice(0, 24);
                     setIban(formatIban('TR' + raw));
                     setBankSaved(false);
                     if (bankError) setBankError('');
                   }}
-                  placeholder="33 0006 1005 1978 6457 8413 26"
+                  placeholder="____ ____ ____ ____ ____ __"
                   placeholderTextColor="#B0AACC"
-                  keyboardType="numeric"
-                  maxLength={30}
                 />
               </View>
             </View>
@@ -472,12 +614,47 @@ export default function InfluencerDocumentsScreen() {
             <View style={s.infoCard}>
               <Ionicons name="information-circle-outline" size={16} color={PURPLE} />
               <Text style={s.infoText}>
-                {companyType === 'SAHIS'
-                  ? 'Şahıs şirketi için gerekli evrakları yükleyin.'
-                  : 'Ltd/A.Ş. için gerekli evrakları yükleyin.'}{' '}
-                PDF veya görsel (JPG/PNG) formatında yükleyebilirsiniz.
+                {companyType === 'BIREYSEL'
+                  ? 'Kimlik fotokopinizi ve İstisna Belgenizi yükleyin. İstisna Belgesi yalnızca PDF formatında kabul edilir.'
+                  : 'Ltd/A.Ş. için gerekli evrakları yükleyin. PDF veya görsel (JPG/PNG) formatında yükleyebilirsiniz.'}
               </Text>
             </View>
+
+            {/* BIREYSEL: İstisna Belgesi Nasıl Alınır? */}
+            {companyType === 'BIREYSEL' && (
+              <>
+                <Pressable style={s.certInfoBtn} onPress={() => setShowCertInfo(!showCertInfo)}>
+                  <Ionicons name={showCertInfo ? 'chevron-up' : 'help-circle-outline'} size={16} color={PURPLE} />
+                  <Text style={s.certInfoBtnText}>{showCertInfo ? 'Detayları Gizle' : 'İstisna Belgesi Nasıl Alınır?'}</Text>
+                </Pressable>
+
+                {showCertInfo && (
+                  <View style={s.certInfoBox}>
+                    <Text style={s.certInfoTitle}>Nereden Alınır?</Text>
+                    <Text style={s.certInfoStep}>1. Fiziksel: İkametgahınıza bağlı vergi dairesine kimliğinizle şahsen başvurun.</Text>
+                    <Text style={s.certInfoStep}>2. Online: gib.gov.tr → Dijital Vergi Dairesi → İşlem Başlat → "Sosyal İçerik Üreticiliği İstisna Belgesi Talebi Dilekçesi"</Text>
+
+                    <Text style={s.certInfoTitle}>Başvuruda Neler Gerekir?</Text>
+                    <Text style={s.certInfoStep}>• Nüfus cüzdanı / kimlik</Text>
+                    <Text style={s.certInfoStep}>• Hangi platformlarda içerik ürettiğinize dair bilgi</Text>
+                    <Text style={s.certInfoStep}>• Geçmiş gelirler ve takipçi sayınız istenebilir</Text>
+
+                    <Text style={s.certInfoTitle}>Ne Kadar Sürer?</Text>
+                    <Text style={s.certInfoStep}>Genellikle 1–3 iş günü içinde e-Devlet'te PDF olarak oluşturulur.</Text>
+
+                    <Text style={s.certInfoTitle}>Belgeyi Aldıktan Sonra</Text>
+                    <Text style={s.certInfoStep}>• Belgeyle bir bankada influencer hesabı açın</Text>
+                    <Text style={s.certInfoStep}>• 1 ay içinde banka bilgilerini vergi dairesine bildirin</Text>
+                    <Text style={s.certInfoStep}>• Tüm kazançlar yalnızca bu hesaba alınmalı</Text>
+
+                    <View style={s.certWarning}>
+                      <Ionicons name="warning-outline" size={14} color="#92400E" />
+                      <Text style={s.certWarningText}>2026 gelir sınırı: 5.300.000 TL. Aşılırsa tüm gelir beyanname ile vergilendirilir.</Text>
+                    </View>
+                  </View>
+                )}
+              </>
+            )}
 
             {docs.map((doc, i) => (
               <View key={doc.type} style={[s.docRow, i < docs.length - 1 && s.docRowBorder]}>
@@ -686,4 +863,71 @@ const s = StyleSheet.create({
   },
   uploadBtnDisabled: { backgroundColor: '#F0EEFF' },
   uploadBtnVerified: { backgroundColor: 'rgba(75,141,92,0.1)' },
+
+  // ─── İşletme Tipi Seçici ─────────────────────────────────────────────────
+  typeOption: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    padding: 14, borderRadius: 14,
+    borderWidth: 1.5, borderColor: '#ECEAF8',
+    backgroundColor: '#FBFAFF',
+  },
+  typeOptionActive: {
+    borderColor: PURPLE, backgroundColor: 'rgba(141,115,255,0.04)',
+  },
+  typeOptionIcon: {
+    width: 40, height: 40, borderRadius: 12,
+    backgroundColor: '#F5F3FF',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  typeOptionLabel: { fontSize: 14, fontWeight: '700', color: '#1C1631' },
+  typeOptionDesc: { fontSize: 11, color: '#9A96B5', marginTop: 2 },
+  typeSelectedRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: 'rgba(141,115,255,0.06)', borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 8,
+  },
+  typeSelectedText: { fontSize: 13, fontWeight: '700', color: PURPLE },
+
+  // ─── İstisna Belgesi (BIREYSEL) ──────────────────────────────────────────
+  pendingDocBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: 'rgba(141,115,255,0.10)', borderRadius: 8,
+    paddingHorizontal: 8, paddingVertical: 3,
+  },
+  pendingDocBadgeText: { fontSize: 10, fontWeight: '700', color: PURPLE },
+
+  certInfoBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    height: 40, borderRadius: 12,
+    backgroundColor: 'rgba(141,115,255,0.08)',
+  },
+  certInfoBtnText: { fontSize: 13, fontWeight: '700', color: PURPLE },
+
+  certInfoBox: {
+    backgroundColor: '#FAFAFE', borderRadius: 14,
+    borderWidth: 1, borderColor: '#F0EEFF', padding: 14, gap: 6,
+  },
+  certInfoTitle: { fontSize: 13, fontWeight: '700', color: '#1C1631', marginTop: 6 },
+  certInfoStep: { fontSize: 12, color: '#5D5677', lineHeight: 18, marginLeft: 4 },
+  certWarning: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: '#FFFBEB', borderRadius: 10,
+    borderWidth: 1, borderColor: '#FDE68A', padding: 10, marginTop: 6,
+  },
+  certWarningText: { flex: 1, fontSize: 11, color: '#92400E', lineHeight: 16 },
+
+  certFileChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: 'rgba(141,115,255,0.08)', borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 8,
+  },
+  certFileChipText: { flex: 1, fontSize: 12, color: PURPLE, fontWeight: '600' },
+
+  certUploadBtn: {
+    height: 48, borderRadius: 14, backgroundColor: '#F59E0B',
+    flexDirection: 'row', gap: 8,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  certUploadBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  certPdfHint: { fontSize: 11, color: '#9A96B5', textAlign: 'center', marginTop: 6 },
 });

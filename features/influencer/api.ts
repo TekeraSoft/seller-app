@@ -2,6 +2,10 @@ import axios from 'axios';
 import { api, API_BASE_URL } from '@/lib/api';
 import type { InfluencerApplication, InfluencerCompanyType, InfluencerDocumentStatus, InfluencerDocumentType } from './types';
 
+export async function updateCompanyType(companyType: InfluencerCompanyType): Promise<void> {
+  await api.put(`/influencer/company-type?companyType=${companyType}`);
+}
+
 type ApiResponse<T> = {
   message?: string;
   statusCode?: number;
@@ -132,6 +136,31 @@ export async function closeInfluencerAccount(): Promise<void> {
   await api.post('/influencer/close-account');
 }
 
+// ─── İstisna Belgesi API'leri ────────────────────────────────────────────────
+
+export type ExemptionStatusDto = {
+  certificateUploaded: boolean;
+  certificateStatus: 'PENDING' | 'VERIFIED' | 'REJECTED' | null;
+  certificateRejectionNote: string | null;
+  hasBankInfo: boolean;
+  iban: string | null;
+  accountHolderName: string | null;
+  bankName: string | null;
+};
+
+export async function getExemptionStatus(): Promise<ExemptionStatusDto> {
+  const res = await api.get<ApiResponse<ExemptionStatusDto>>('/influencer/exemption-status');
+  return res.data?.data ?? {
+    certificateUploaded: false,
+    certificateStatus: null,
+    certificateRejectionNote: null,
+    hasBankInfo: false,
+    iban: null,
+    accountHolderName: null,
+    bankName: null,
+  };
+}
+
 // ─── Link API'leri ────────────────────────────────────────────────────────────
 
 export type InfluencerLinkDto = {
@@ -238,6 +267,9 @@ export type InfluencerCommissionDto = {
   platformCommission: number;
   influencerRate: number;
   influencerEarning: number;
+  withholdingTaxRate: number;
+  withholdingTaxAmount: number;
+  netEarning: number;
   period: number | null;
   status: InfluencerCommissionStatus;
   deliveredAt: string | null;

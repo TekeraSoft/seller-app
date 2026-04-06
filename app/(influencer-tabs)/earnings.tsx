@@ -101,7 +101,7 @@ export default function EarningsScreen() {
           </View>
           <View style={s.txRight}>
             <AppText style={[s.txEarning, item.status === 'CANCELLED' && { color: '#FF6B6B', textDecorationLine: 'line-through' }]}>
-              +{formatPrice(item.influencerEarning)}
+              +{formatPrice(item.netEarning)}
             </AppText>
             <View style={[s.txBadge, { backgroundColor: info.color + '18' }]}>
               <Ionicons name={info.icon} size={10} color={info.color} />
@@ -112,9 +112,17 @@ export default function EarningsScreen() {
         {/* Detay satırı */}
         <View style={s.txDetail}>
           <AppText style={s.txDetailText}>Satış: {formatPrice(item.saleAmount)}</AppText>
-          <AppText style={s.txDetailText}>Platform Kom.: {formatPrice(item.platformCommission)}</AppText>
+          <AppText style={s.txDetailText}>Brüt: {formatPrice(item.influencerEarning)}</AppText>
           <AppText style={s.txDetailText}>Oran: %{(item.influencerRate * 100).toFixed(0)}</AppText>
         </View>
+        {item.withholdingTaxAmount > 0 && (
+          <View style={s.txTaxRow}>
+            <Ionicons name="receipt-outline" size={10} color="#F59E0B" />
+            <AppText style={s.txTaxText}>
+              Stopaj (%{(item.withholdingTaxRate * 100).toFixed(0)}): -{formatPrice(item.withholdingTaxAmount)} → Net: {formatPrice(item.netEarning)}
+            </AppText>
+          </View>
+        )}
       </View>
     );
   };
@@ -347,6 +355,21 @@ const s = StyleSheet.create({
   txDetailText: {
     fontSize: 10,
     color: '#9A96B5',
+  },
+  txTaxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+    backgroundColor: 'rgba(245,158,11,0.08)',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  txTaxText: {
+    fontSize: 10,
+    color: '#92400E',
+    fontWeight: '600',
   },
 
   // ─── Boş durum ──────────────────────────────────────────────────────

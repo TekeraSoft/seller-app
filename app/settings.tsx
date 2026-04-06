@@ -99,11 +99,13 @@ export default function SettingsScreen() {
           Ayarlar
         </AppText>
 
-        <Pressable style={styles.profileButton} onPress={() => router.push('/seller-profile')}>
-          <AppText style={styles.profileText} tone="rounded">
-            Satıcı Profili
-          </AppText>
-        </Pressable>
+        {isSeller && (
+          <Pressable style={styles.profileButton} onPress={() => router.push('/seller-profile')}>
+            <AppText style={styles.profileText} tone="rounded">
+              Satıcı Profili
+            </AppText>
+          </Pressable>
+        )}
 
         <Pressable style={styles.logoutButton} onPress={handleSignOut}>
           <AppText style={styles.logoutText} tone="rounded">
