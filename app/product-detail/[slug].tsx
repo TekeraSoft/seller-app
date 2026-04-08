@@ -5,12 +5,14 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   useWindowDimensions,
   View,
+  Share,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -27,7 +29,6 @@ import {
   fetchCatalogDetail,
 } from '@/features/influencer/product-api';
 import { createInfluencerLink, getMyLinks } from '@/features/influencer/api';
-import { Share } from 'react-native';
 import { resolvePublicAssetUrl } from '@/features/seller/mappers';
 
 const P = '#8D73FF';
@@ -79,6 +80,7 @@ export default function ProductDetailScreen() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+
 
   const { width } = useWindowDimensions();
   const [detail, setDetail] = useState<CatalogDetailDto | null>(null);
@@ -429,31 +431,39 @@ export default function ProductDetailScreen() {
             <AppText style={s.noSeller}>Bu varyant için satıcı bilgisi yok</AppText>
           )}
         </View>
+
       </ScrollView>
 
-      {/* Alt Buton */}
+      {/* Alt Buton — sabit */}
       <View style={[s.bottomBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-        {!linkChecked ? (
-          <View style={[s.linkBtn, { opacity: 0.5 }]}>
+        <Pressable
+          onPress={() => {
+            if (!linkChecked || linkCreating) return;
+            if (linkCreated) {
+              Share.share({ message: detail?.name || '', title: detail?.name || '' });
+              return;
+            }
+            handleLink();
+          }}
+          style={[
+            linkCreated ? s.linkBtnCreated : s.linkBtn,
+            (!linkChecked || linkCreating) && { opacity: 0.5 },
+          ]}
+        >
+          {!linkChecked || linkCreating ? (
             <ActivityIndicator size="small" color="#fff" />
-          </View>
-        ) : linkCreated ? (
-          <View style={s.linkBtnCreated}>
-            <Ionicons name="checkmark-circle" size={20} color="#fff" />
-            <AppText style={s.linkBtnText}>Oluşturuldu</AppText>
-          </View>
-        ) : (
-          <Pressable style={[s.linkBtn, linkCreating && { opacity: 0.7 }]} onPress={handleLink} disabled={linkCreating}>
-            {linkCreating ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <>
-                <Ionicons name="link" size={20} color="#fff" />
-                <AppText style={s.linkBtnText}>Referans Linki Oluştur</AppText>
-              </>
-            )}
-          </Pressable>
-        )}
+          ) : linkCreated ? (
+            <>
+              <Ionicons name="checkmark-circle" size={20} color="#fff" />
+              <AppText style={s.linkBtnText}>Oluşturuldu</AppText>
+            </>
+          ) : (
+            <>
+              <Ionicons name="link" size={20} color="#fff" />
+              <AppText style={s.linkBtnText}>Referans Linki Oluştur</AppText>
+            </>
+          )}
+        </Pressable>
       </View>
     </View>
   );
@@ -701,21 +711,31 @@ const s = StyleSheet.create({
   },
   linkBtn: {
     height: 52,
-    borderRadius: 16,
+    borderRadius: 26,
     backgroundColor: P,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+    shadowColor: '#8D73FF',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 8,
   },
   linkBtnCreated: {
     height: 52,
-    borderRadius: 16,
+    borderRadius: 26,
     backgroundColor: '#4ECDC4',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+    shadowColor: '#4ECDC4',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 8,
   },
   linkBtnText: {
     fontSize: 15,

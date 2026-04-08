@@ -79,11 +79,6 @@ export function VersionGuard() {
 
   return (
     <>
-      {isChecking && !policy ? (
-        <View pointerEvents="none" style={styles.loadingOverlay}>
-          <ActivityIndicator size="small" color="#6D57F2" />
-        </View>
-      ) : null}
 
       <Modal transparent visible={isVisible} animationType="fade" statusBarTranslucent>
         <View style={styles.backdrop}>

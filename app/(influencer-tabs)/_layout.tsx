@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { Fonts } from '@/constants/theme';
+import { useTabBarVisible } from '@/lib/tab-bar-visibility';
 import { useAuth } from '@/context/auth-context';
 import { getMyApplication } from '@/features/influencer/api';
 import type { InfluencerApplication } from '@/features/influencer/types';
@@ -25,6 +26,9 @@ const ICON_BY_ROUTE: Record<string, keyof typeof Ionicons.glyphMap> = {
 
 function InfluencerTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
+  const tabBarVisible = useTabBarVisible();
+
+  if (!tabBarVisible) return <View style={{ height: 0, overflow: 'hidden' }} pointerEvents="none" />;
 
   return (
     <View style={[styles.tabBar, { bottom: Math.max(14, insets.bottom + 6) }]}>

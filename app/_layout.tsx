@@ -5,6 +5,7 @@ import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef } from 'react';
 import { Provider } from 'react-redux';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
 SplashScreen.preventAutoHideAsync();
@@ -104,28 +105,30 @@ function NotificationRouter() {
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <Provider store={store}>
-        <SellerBootstrap />
-        <VersionGuard />
-        <NotificationRouter />
-        <ThemeProvider value={DefaultTheme}>
-          <Stack>
-            <Stack.Screen name="index" options={{ headerShown: false }} />
-            <Stack.Screen name="auth" options={{ title: 'Giriş', headerShown: false }} />
-            <Stack.Screen name="register/index" options={{ headerShown: false }} />
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="influencer" options={{ headerShown: false }} />
-            <Stack.Screen name="(influencer-tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="product-detail" options={{ headerShown: false }} />
-            <Stack.Screen name="notifications" options={{ title: 'Bildirimler' }} />
-            <Stack.Screen name="settings" options={{ title: 'Ayarlar' }} />
-            <Stack.Screen name="seller-profile" options={{ title: 'Satıcı Profili', headerBackVisible: false }} />
-            <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-          </Stack>
-          <StatusBar style="dark" />
-        </ThemeProvider>
-      </Provider>
-    </AuthProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AuthProvider>
+        <Provider store={store}>
+          <SellerBootstrap />
+          <VersionGuard />
+          <NotificationRouter />
+          <ThemeProvider value={DefaultTheme}>
+            <Stack>
+              <Stack.Screen name="index" options={{ headerShown: false }} />
+              <Stack.Screen name="auth" options={{ title: 'Giriş', headerShown: false }} />
+              <Stack.Screen name="register/index" options={{ headerShown: false }} />
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="influencer" options={{ headerShown: false }} />
+              <Stack.Screen name="(influencer-tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="product-detail" options={{ headerShown: false }} />
+              <Stack.Screen name="notifications" options={{ title: 'Bildirimler' }} />
+              <Stack.Screen name="settings" options={{ title: 'Ayarlar' }} />
+              <Stack.Screen name="seller-profile" options={{ title: 'Satıcı Profili', headerBackVisible: false }} />
+              <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+            </Stack>
+            <StatusBar style="dark" />
+          </ThemeProvider>
+        </Provider>
+      </AuthProvider>
+    </GestureHandlerRootView>
   );
 }
