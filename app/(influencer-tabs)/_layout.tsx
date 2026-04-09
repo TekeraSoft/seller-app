@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Redirect, Tabs, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { Image, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
@@ -161,6 +161,8 @@ export default function InfluencerTabLayout() {
       screenOptions={{
         headerShown: true,
         tabBarShowLabel: false,
+        headerStyle: Platform.OS === 'ios' ? { height: 110 } : undefined,
+        headerTitleContainerStyle: Platform.OS === 'ios' ? { paddingBottom: 8 } : undefined,
       }}
     >
       <Tabs.Screen
@@ -233,7 +235,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerRow: {
-    flex: 1,
     width: '100%',
     flexDirection: 'row',
     alignItems: 'center',

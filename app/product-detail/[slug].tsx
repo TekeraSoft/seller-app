@@ -10,6 +10,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  TouchableOpacity,
   useWindowDimensions,
   View,
   Share,
@@ -256,7 +257,7 @@ export default function ProductDetailScreen() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}
+        contentContainerStyle={{ paddingBottom: Platform.OS === 'android' ? 100 + insets.bottom : 16 }}
       >
         {/* Ana Görsel */}
         <View style={s.imageContainer}>
@@ -316,6 +317,41 @@ export default function ProductDetailScreen() {
               {downloading ? 'İndiriliyor...' : `Tüm Görselleri İndir (${images.length})`}
             </AppText>
           </Pressable>
+        )}
+
+        {/* Referans Linki — iOS'ta scroll içinde */}
+        {Platform.OS === 'ios' && (
+          <View style={{ paddingHorizontal: 16, marginTop: 8 }}>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              disabled={!linkChecked || linkCreating}
+              onPress={() => {
+                if (linkCreated) {
+                  Share.share({ message: detail?.name || '', title: detail?.name || '' });
+                  return;
+                }
+                handleLink();
+              }}
+              style={[
+                linkCreated ? s.linkBtnCreated : s.linkBtn,
+                (!linkChecked || linkCreating) && { opacity: 0.5 },
+              ]}
+            >
+              {!linkChecked || linkCreating ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : linkCreated ? (
+                <>
+                  <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                  <AppText style={s.linkBtnText}>Oluşturuldu</AppText>
+                </>
+              ) : (
+                <>
+                  <Ionicons name="link" size={20} color="#fff" />
+                  <AppText style={s.linkBtnText}>Referans Linki Oluştur</AppText>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
         )}
 
         {/* Ürün Bilgileri */}
@@ -434,37 +470,40 @@ export default function ProductDetailScreen() {
 
       </ScrollView>
 
-      {/* Alt Buton — sabit */}
-      <View style={[s.bottomBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-        <Pressable
-          onPress={() => {
-            if (!linkChecked || linkCreating) return;
-            if (linkCreated) {
-              Share.share({ message: detail?.name || '', title: detail?.name || '' });
-              return;
-            }
-            handleLink();
-          }}
-          style={[
-            linkCreated ? s.linkBtnCreated : s.linkBtn,
-            (!linkChecked || linkCreating) && { opacity: 0.5 },
-          ]}
-        >
-          {!linkChecked || linkCreating ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : linkCreated ? (
-            <>
-              <Ionicons name="checkmark-circle" size={20} color="#fff" />
-              <AppText style={s.linkBtnText}>Oluşturuldu</AppText>
-            </>
-          ) : (
-            <>
-              <Ionicons name="link" size={20} color="#fff" />
-              <AppText style={s.linkBtnText}>Referans Linki Oluştur</AppText>
-            </>
-          )}
-        </Pressable>
-      </View>
+      {/* Alt Buton — Android'de sabit */}
+      {Platform.OS === 'android' && (
+        <View style={[s.bottomBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+          <TouchableOpacity
+            activeOpacity={0.7}
+            disabled={!linkChecked || linkCreating}
+            onPress={() => {
+              if (linkCreated) {
+                Share.share({ message: detail?.name || '', title: detail?.name || '' });
+                return;
+              }
+              handleLink();
+            }}
+            style={[
+              linkCreated ? s.linkBtnCreated : s.linkBtn,
+              (!linkChecked || linkCreating) && { opacity: 0.5 },
+            ]}
+          >
+            {!linkChecked || linkCreating ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : linkCreated ? (
+              <>
+                <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                <AppText style={s.linkBtnText}>Oluşturuldu</AppText>
+              </>
+            ) : (
+              <>
+                <Ionicons name="link" size={20} color="#fff" />
+                <AppText style={s.linkBtnText}>Referans Linki Oluştur</AppText>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 }

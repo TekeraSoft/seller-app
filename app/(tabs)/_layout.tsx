@@ -4,7 +4,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
 import { Redirect, Tabs, usePathname, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { Image, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
@@ -231,6 +231,7 @@ function SellerHeader() {
 
 export default function TabLayout() {
   const { isAuthenticated, isLoading, roles } = useAuth();
+  const insets = useSafeAreaInsets();
 
   if (isLoading) return null;
 
@@ -350,9 +351,9 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   avatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 17,
+    width: Platform.OS === 'ios' ? 38 : 64,
+    height: Platform.OS === 'ios' ? 38 : 64,
+    borderRadius: Platform.OS === 'ios' ? 12 : 17,
     backgroundColor: '#F0C4A8',
     alignItems: 'center',
     justifyContent: 'center',
@@ -403,5 +404,13 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontFamily: Fonts.sans,
     fontWeight: '700',
+  },
+  iosHeader: {
+    backgroundColor: '#FFFFFF',
+  },
+  iosHeaderContent: {
+    height: 80,
+    paddingHorizontal: 16,
+    justifyContent: 'center',
   },
 });

@@ -19,7 +19,7 @@
       "package": "com.tekerasoft.tekeramarketplace",
       "googleServicesFile": "./google-services.json",
       "usesCleartextTraffic": true,
-      "edgeToEdgeEnabled": true,
+      "edgeToEdgeEnabled": false,
       "predictiveBackGestureEnabled": false
     },
     "web": {
