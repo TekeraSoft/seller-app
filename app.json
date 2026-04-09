@@ -11,6 +11,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.tekerasoft.tekeramarketplace",
+      "version": "1.0.8",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
