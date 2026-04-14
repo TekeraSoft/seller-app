@@ -2,13 +2,15 @@ import { PhoneInput } from '@/components/phone-input';
 import { applyAsInfluencer, getMyApplication } from '@/features/influencer/api';
 import type { InfluencerCompanyType } from '@/features/influencer/types';
 import { useAuth } from '@/context/auth-context';
+import { useChat } from '@/context/chat-context';
 import { getSellerIdentityFromAccessToken } from '@/lib/api';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { isAxiosError } from 'axios';
 import { Redirect, Stack, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -27,6 +29,25 @@ function isValidUrl(v: string) {
   catch { return false; }
 }
 
+function BlinkingWarning() {
+  const opacity = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 0.25, duration: 600, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 1, duration: 600, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [opacity]);
+  return (
+    <Animated.View style={{ opacity }}>
+      <Ionicons name="alert-circle" size={12} color="#A16207" />
+    </Animated.View>
+  );
+}
+
 export default function InfluencerApplyScreen() {
   const { signOut, token, isAuthenticated } = useAuth();
   const router = useRouter();
@@ -38,6 +59,7 @@ export default function InfluencerApplyScreen() {
   const lastName = rest.join(' ');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const { openChat } = useChat();
 
   // If application already exists and not rejected, go to status page
   useEffect(() => {
@@ -110,10 +132,20 @@ export default function InfluencerApplyScreen() {
       {/* Üst bar */}
       <View style={s.topBar}>
         <Text style={s.topTitle}>Influencer Başvurusu</Text>
-        <Pressable style={s.signOutBtn} onPress={signOut} hitSlop={12}>
-          <Ionicons name="log-out-outline" size={22} color={P} />
-          <Text style={s.signOutText}>Çıkış</Text>
-        </Pressable>
+        <View style={s.topActions}>
+          <Pressable
+            style={({ pressed }) => [s.chatBtn, pressed && { opacity: 0.7 }]}
+            onPress={openChat}
+            hitSlop={10}
+          >
+            <MaterialCommunityIcons name="robot-happy" size={16} color="#fff" />
+            <Text style={s.chatBtnText}>Destek</Text>
+          </Pressable>
+          <Pressable style={s.signOutBtn} onPress={signOut} hitSlop={12}>
+            <Ionicons name="log-out-outline" size={22} color={P} />
+            <Text style={s.signOutText}>Çıkış</Text>
+          </Pressable>
+        </View>
       </View>
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -223,6 +255,10 @@ export default function InfluencerApplyScreen() {
                 <Ionicons name="share-social" size={14} color={P} />
               </View>
               <Text style={s.sectionTitle}>Sosyal Medya</Text>
+              <View style={s.noticeBadge}>
+                <BlinkingWarning />
+                <Text style={s.noticeText}>Lütfen link olarak ekleyiniz</Text>
+              </View>
             </View>
             {[
               { label: 'Instagram', icon: 'logo-instagram', req: true, val: instagram, set: setInstagram },
@@ -293,6 +329,16 @@ const s = StyleSheet.create({
     backgroundColor: '#fff',
   },
   topTitle: { fontSize: 16, fontWeight: '700', color: '#1C1631' },
+  topActions: { flexDirection: 'row', alignItems: 'center', gap: 20 },
+  chatBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    height: 30, borderRadius: 15,
+    paddingHorizontal: 10,
+    backgroundColor: P,
+    shadowColor: P, shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25, shadowRadius: 4, elevation: 3,
+  },
+  chatBtnText: { color: '#fff', fontSize: 12, fontWeight: '700' },
   signOutBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   signOutText: { fontSize: 13, fontWeight: '600', color: P },
 
@@ -313,6 +359,14 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   sectionTitle: { fontSize: 14, fontWeight: '700', color: '#1C1631' },
+  noticeBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1, borderColor: '#FDE68A',
+    paddingHorizontal: 8, paddingVertical: 3,
+    borderRadius: 8,
+  },
+  noticeText: { fontSize: 10, fontWeight: '700', color: '#A16207' },
 
   row2: { flexDirection: 'row', gap: 10 },
   field: { gap: 6 },

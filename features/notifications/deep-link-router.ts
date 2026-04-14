@@ -6,11 +6,16 @@ const INFLUENCER_ROUTES: Record<string, string> = {
   'influencer://links': '/(influencer-tabs)/links',
   'influencer://products': '/(influencer-tabs)/products',
   'influencer://profile': '/(influencer-tabs)/inf-profile',
+  'influencer://documents': '/influencer/documents',
+  'influencer://status': '/influencer/status',
+  'influencer://apply': '/influencer/apply',
   '/influencer/dashboard': '/(influencer-tabs)/dashboard',
   '/influencer/earnings': '/(influencer-tabs)/earnings',
   '/influencer/links': '/(influencer-tabs)/links',
   '/influencer/referrals': '/(influencer-tabs)/dashboard',
-  '/influencer/apply': '/(influencer-tabs)/dashboard',
+  '/influencer/apply': '/influencer/apply',
+  '/influencer/documents': '/influencer/documents',
+  '/influencer/status': '/influencer/status',
 };
 
 /**
@@ -27,7 +32,7 @@ export function routeDeepLink(
   const link = deepLink.trim();
   if (!link) return false;
 
-  // Influencer deep link'leri — herkes için (ama pratikte sadece influencer'lara gönderilecek)
+  // Influencer deep link'leri — herkes için
   const influencerRoute = INFLUENCER_ROUTES[link];
   if (influencerRoute) {
     router.push(influencerRoute as any);
@@ -40,8 +45,8 @@ export function routeDeepLink(
     return true;
   }
 
-  // Influencer kullanıcısı + satıcı olmayan → satıcı deep link'lerine erişim yok
-  if (options.isInfluencer && !options.isSeller) {
+  // Herhangi bir influencer rolü varsa: satıcı deep link'lerine ASLA yönlendirme
+  if (options.isInfluencer) {
     router.push('/(influencer-tabs)/dashboard' as any);
     return true;
   }
@@ -50,11 +55,11 @@ export function routeDeepLink(
 }
 
 /**
- * Influencer kullanıcısı için varsayılan fallback route.
- * Satıcı sayfalarına düşmesini engeller.
+ * Varsayılan fallback route.
+ * Influencer rolü varsa satıcı sayfasına hiçbir koşulda gitmez.
  */
 export function getDefaultRoute(options: { isInfluencer: boolean; isSeller: boolean }): string {
-  if (options.isInfluencer && !options.isSeller) {
+  if (options.isInfluencer) {
     return '/(influencer-tabs)/dashboard';
   }
   return '/orders';

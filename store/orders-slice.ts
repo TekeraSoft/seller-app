@@ -44,6 +44,21 @@ function toLineItem(
   const lineTotal = toNumber(value?.lineTotal);
   const imagePath = toOptionalNonEmptyString(value?.image);
 
+  const rawAttributes = Array.isArray(value?.variantAttributes) ? value!.variantAttributes! : [];
+  const variantAttributes = rawAttributes
+    .map((attr) => {
+      const key = toOptionalNonEmptyString(attr?.key);
+      const val = toOptionalNonEmptyString(attr?.value);
+      if (!key || !val) return null;
+      return { key, value: val };
+    })
+    .filter((attr): attr is { key: string; value: string } => attr !== null);
+
+  const variantColor = toOptionalNonEmptyString(value?.variantColor);
+  if (variantColor && !variantAttributes.some((attr) => attr.key.toLowerCase() === 'renk')) {
+    variantAttributes.unshift({ key: 'Renk', value: variantColor });
+  }
+
   return {
     id,
     name:
@@ -54,6 +69,8 @@ function toLineItem(
     unitPrice,
     lineTotal,
     image: imagePath ? resolvePublicAssetUrl(imagePath) : null,
+    variantCode: toOptionalNonEmptyString(value?.variantCode) ?? null,
+    variantAttributes,
   };
 }
 

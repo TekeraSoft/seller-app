@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,7 +18,9 @@ type ScreenState = 'loading' | 'contract' | 'accepted_pending' | 'error';
 
 export default function SellerProfileScreen() {
   const router = useRouter();
-  const { signIn, signOut } = useAuth();
+  const { signIn, signOut, roles } = useAuth();
+  if (roles.includes('WITHOUT_APPROVAL_INFLUENCER')) return <Redirect href="/influencer/status" />;
+  if (roles.includes('INFLUENCER')) return <Redirect href="/(influencer-tabs)/dashboard" />;
 
   const [screenState, setScreenState] = useState<ScreenState>('loading');
   const [contractInfo, setContractInfo] = useState<ContractInfo | null>(null);

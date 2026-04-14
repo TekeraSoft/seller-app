@@ -3,8 +3,9 @@ import type { InfluencerContractInfo } from '@/features/influencer/api';
 import type { InfluencerApplication, InfluencerDocumentStatus, InfluencerStatus } from '@/features/influencer/types';
 import { DOCUMENT_LABELS } from '@/features/influencer/types';
 import { useAuth } from '@/context/auth-context';
+import { useChat } from '@/context/chat-context';
 import { refreshAuthSession } from '@/lib/api';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Redirect, Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -295,6 +296,7 @@ export default function InfluencerStatusScreen() {
   const [contract, setContract] = useState<InfluencerContractInfo | null>(null);
   const [contractLoading, setContractLoading] = useState(false);
   const [rejectedDocs, setRejectedDocs] = useState<InfluencerDocumentStatus[]>([]);
+  const { openChat } = useChat();
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -395,10 +397,20 @@ export default function InfluencerStatusScreen() {
 
       <View style={s.topBar}>
         <Text style={s.topTitle}>Başvuru Durumu</Text>
-        <Pressable style={s.signOutBtn} onPress={signOut} hitSlop={12}>
-          <Ionicons name="log-out-outline" size={22} color={P} />
-          <Text style={s.signOutText}>Çıkış</Text>
-        </Pressable>
+        <View style={s.topActions}>
+          <Pressable
+            style={({ pressed }) => [s.chatBtn, pressed && { opacity: 0.7 }]}
+            onPress={openChat}
+            hitSlop={10}
+          >
+            <MaterialCommunityIcons name="robot-happy" size={16} color="#fff" />
+            <Text style={s.chatBtnText}>Destek</Text>
+          </Pressable>
+          <Pressable style={s.signOutBtn} onPress={signOut} hitSlop={12}>
+            <Ionicons name="log-out-outline" size={22} color={P} />
+            <Text style={s.signOutText}>Çıkış</Text>
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView
@@ -600,6 +612,16 @@ const s = StyleSheet.create({
     backgroundColor: '#fff',
   },
   topTitle: { fontSize: 16, fontWeight: '700', color: '#1C1631' },
+  topActions: { flexDirection: 'row', alignItems: 'center', gap: 20 },
+  chatBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    height: 30, borderRadius: 15,
+    paddingHorizontal: 10,
+    backgroundColor: P,
+    shadowColor: P, shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25, shadowRadius: 4, elevation: 3,
+  },
+  chatBtnText: { color: '#fff', fontSize: 12, fontWeight: '700' },
   signOutBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   signOutText: { fontSize: 13, fontWeight: '600', color: P },
 

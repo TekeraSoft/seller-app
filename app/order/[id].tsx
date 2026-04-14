@@ -1,15 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Redirect, Stack, useLocalSearchParams } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Keyboard, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { Fonts } from '@/constants/theme';
+import { useAuth } from '@/context/auth-context';
 import {
   acceptSellerOrder,
   createShipmentForSellerOrder,
@@ -50,7 +51,30 @@ function toTurkishStatusLabel(status: string): string {
   }
 }
 
+function toTurkishPaymentStatusLabel(status: string | null | undefined): string {
+  if (!status) return '-';
+  switch (status.trim().toUpperCase()) {
+    case 'PAID':
+      return 'Ödendi';
+    case 'PENDING':
+      return 'Beklemede';
+    case 'FAILED':
+      return 'Başarısız';
+    case 'REFUNDED':
+      return 'İade Edildi';
+    case 'PARTIALLY_REFUNDED':
+      return 'Kısmen İade Edildi';
+    case 'CANCELLED':
+      return 'İptal Edildi';
+    case 'AUTHORIZED':
+      return 'Onaylandı';
+    default:
+      return status;
+  }
+}
+
 export default function OrderDetailScreen() {
+  const { roles } = useAuth();
   const params = useLocalSearchParams<{ id?: string }>();
   const orderId = typeof params.id === 'string' ? params.id : '';
   const order = useAppSelector((state) => state.orders.items.find((item) => item.id === orderId));
@@ -67,6 +91,9 @@ export default function OrderDetailScreen() {
   const [isUploadingInvoice, setIsUploadingInvoice] = useState(false);
   const [invoiceUrl, setInvoiceUrl] = useState<string | null>(null);
   const [isLoadingInvoice, setIsLoadingInvoice] = useState(false);
+
+  if (roles.includes('WITHOUT_APPROVAL_INFLUENCER')) return <Redirect href="/influencer/status" />;
+  if (roles.includes('INFLUENCER')) return <Redirect href="/(influencer-tabs)/dashboard" />;
   const normalizedStatus = (localOrderStatus ?? order?.sellerOrderStatus ?? '').trim().toUpperCase();
   const canAcceptOrder = normalizedStatus === 'PENDING';
   const canCreateShipment = normalizedStatus === 'ACCEPTED' && !shipmentCreatedLocally;
@@ -253,7 +280,7 @@ export default function OrderDetailScreen() {
     }
   };
 
-  const onUploadInvoice = async () => {
+  const performInvoiceUpload = async () => {
     if (!order) return;
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -264,7 +291,7 @@ export default function OrderDetailScreen() {
       if (result.canceled) return;
       const asset = result.assets?.[0];
       if (!asset?.uri) {
-        Alert.alert('Hata', 'Secilen dosya okunamadi.');
+        Alert.alert('Hata', 'Seçilen dosya okunamadı.');
         return;
       }
 
@@ -275,14 +302,41 @@ export default function OrderDetailScreen() {
         fileName: asset.name ?? `invoice-${order.orderNo}.pdf`,
         mimeType: asset.mimeType,
       });
-      Alert.alert('Basarili', response.message ?? 'Fatura yuklendi.');
-      const nextInvoiceUrl = await getInvoicePresignedUrl(order.id);
-      setInvoiceUrl(nextInvoiceUrl);
+      try {
+        const nextInvoiceUrl = await getInvoicePresignedUrl(order.id);
+        setInvoiceUrl(nextInvoiceUrl);
+      } catch {
+        // URL alınamasa bile yükleme başarılı
+      }
+      Alert.alert('Başarılı', response.message ?? 'Fatura yüklendi.');
     } catch (error) {
-      Alert.alert('Hata', getErrorMessage(error, 'Fatura yuklenemedi.'));
+      Alert.alert('Hata', getErrorMessage(error, 'Fatura yüklenemedi.'));
     } finally {
       setIsUploadingInvoice(false);
     }
+  };
+
+  const onUploadInvoice = async () => {
+    if (!order) return;
+    Keyboard.dismiss();
+
+    const hasExistingInvoice = Boolean(
+      invoiceUrl || (await getInvoicePresignedUrl(order.id).catch(() => null)),
+    );
+
+    if (hasExistingInvoice) {
+      Alert.alert(
+        'Faturayı Yeniden Yükle',
+        'Bu sipariş için zaten bir fatura yüklenmiş. Yeni fatura öncekinin yerini alır ve alıcıya "fatura güncellendi" bildirimi gönderilir. Devam etmek istiyor musun?',
+        [
+          { text: 'Vazgeç', style: 'cancel' },
+          { text: 'Evet, Yeniden Yükle', style: 'destructive', onPress: () => void performInvoiceUpload() },
+        ],
+      );
+      return;
+    }
+
+    await performInvoiceUpload();
   };
 
   const onOpenInvoice = async () => {
@@ -305,7 +359,11 @@ export default function OrderDetailScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
-      <Stack.Screen options={{ title: order ? `#${order.orderNo}` : 'Siparis Detayi' }} />
+      <Stack.Screen
+        options={{
+          title: order ? `#${order.orderNo}` : 'Sipariş Detayı',
+        }}
+      />
       {!order ? (
         <View style={styles.emptyWrap}>
           <AppText style={styles.emptyText}>Siparis detayi bulunamadi. Listeyi yenileyip tekrar dene.</AppText>
@@ -353,7 +411,7 @@ export default function OrderDetailScreen() {
             <Row label="Telefon" value={order.buyerPhone} />
             <Row label="Tarih" value={formatDate(order.createdAt)} />
             <Row label="Durum" value={statusLabel} />
-            <Row label="Odeme" value={order.paymentStatus ?? '-'} />
+            <Row label="Ödeme" value={toTurkishPaymentStatusLabel(order.paymentStatus)} />
           </View>
 
           <View style={styles.infoCard}>
@@ -433,21 +491,41 @@ export default function OrderDetailScreen() {
             </AppText>
             {order.items.map((item) => (
               <View key={item.id} style={styles.itemRow}>
-                <View style={styles.itemImageWrap}>
-                  {item.image ? (
-                    <Image source={{ uri: item.image }} style={styles.itemImage} resizeMode="cover" />
-                  ) : (
-                    <Ionicons name="image-outline" size={15} color="#A2A2AB" />
-                  )}
-                </View>
-                <View style={styles.itemMain}>
-                  <AppText style={styles.itemName}>{item.name}</AppText>
-                  <AppText style={styles.itemMeta}>
-                    {item.quantity} adet x {formatCurrency(item.unitPrice)}
+                <View style={styles.itemTopRow}>
+                  <View style={styles.itemImageWrap}>
+                    {item.image ? (
+                      <Image source={{ uri: item.image }} style={styles.itemImage} resizeMode="cover" />
+                    ) : (
+                      <Ionicons name="image-outline" size={15} color="#A2A2AB" />
+                    )}
+                  </View>
+                  <View style={styles.itemMain}>
+                    <AppText style={styles.itemName} numberOfLines={2}>
+                      {item.name}
+                    </AppText>
+                    {item.variantCode ? (
+                      <AppText style={styles.itemCode} tone="mono" numberOfLines={1}>
+                        {item.variantCode}
+                      </AppText>
+                    ) : null}
+                  </View>
+                  <AppText style={styles.itemTotal} tone="rounded">
+                    {formatCurrency(item.lineTotal)}
                   </AppText>
                 </View>
-                <AppText style={styles.itemTotal} tone="rounded">
-                  {formatCurrency(item.lineTotal)}
+                {item.variantAttributes.length > 0 ? (
+                  <View style={styles.variantChipsRow}>
+                    {item.variantAttributes.map((attr) => (
+                      <View key={`${item.id}-${attr.key}`} style={styles.variantChip}>
+                        <AppText style={styles.variantChipText}>
+                          {attr.key}: <AppText style={styles.variantChipValue}>{attr.value}</AppText>
+                        </AppText>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+                <AppText style={styles.itemMeta}>
+                  {item.quantity} adet x {formatCurrency(item.unitPrice)}
                 </AppText>
               </View>
             ))}
@@ -668,12 +746,19 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.rounded,
   },
   itemRow: {
+    gap: 4,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F2F2F5',
+  },
+  itemTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    paddingVertical: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F2F2F5',
+  },
+  itemCode: {
+    fontSize: 10,
+    color: '#9A9AA3',
   },
   itemImageWrap: {
     width: 40,
@@ -703,11 +788,35 @@ const styles = StyleSheet.create({
     color: '#8D8D96',
     fontFamily: Fonts.sans,
   },
+  variantChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+    marginTop: 2,
+  },
+  variantChip: {
+    backgroundColor: '#F2F2F7',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  variantChipText: {
+    fontSize: 10,
+    color: '#6B6B74',
+    fontFamily: Fonts.sans,
+  },
+  variantChipValue: {
+    fontSize: 10,
+    color: '#1C1C21',
+    fontFamily: Fonts.sans,
+    fontWeight: '700',
+  },
   itemTotal: {
     fontSize: 12,
     color: '#16161A',
     fontWeight: '700',
     fontFamily: Fonts.rounded,
+    alignSelf: 'flex-start',
   },
   addressWrap: {
     gap: 3,

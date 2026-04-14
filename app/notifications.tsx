@@ -122,6 +122,12 @@ export default function NotificationsScreen() {
       // Deep link routing (influencer koruması dahil)
       if (routeDeepLink(router, deepLink, roleCtx)) return;
 
+      // Influencer rolü olan kullanıcılar satıcı route'larına HİÇBİR koşulda gitmez
+      if (isInfluencer) {
+        router.push(getDefaultRoute(roleCtx) as any);
+        return;
+      }
+
       // Satıcı deep link'leri
       if (deepLink.includes('/messages')) {
         router.push('/messages');

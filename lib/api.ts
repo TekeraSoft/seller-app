@@ -9,6 +9,9 @@ export type AuthSession = {
 type SessionListener = (session: AuthSession | null) => void | Promise<void>;
 type RetryableRequestConfig = InternalAxiosRequestConfig & { _retry?: boolean };
 type TokenClaims = {
+  sub?: unknown;
+  userId?: unknown;
+  user_id?: unknown;
   sellerId?: unknown;
   basicId?: unknown;
   basic_id?: unknown;
@@ -149,6 +152,16 @@ export function getUserTypeFromToken(accessToken: string): UserType {
   if (isSellerAccessToken(accessToken)) return 'seller';
   if (isInfluencerAccessToken(accessToken)) return 'influencer';
   return 'unknown';
+}
+
+export function getUserIdFromToken(accessToken: string): string | null {
+  const claims = parseJwtClaims(accessToken);
+  if (!claims) return null;
+  return (
+    toOptionalString(claims.userId) ??
+    toOptionalString(claims.user_id) ??
+    toOptionalString(claims.sub)
+  );
 }
 
 export function getRolesFromToken(accessToken: string): string[] {

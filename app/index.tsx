@@ -19,14 +19,13 @@ export default function RootIndex() {
 
   if (roles.includes('CUSTOMER')) return <Redirect href="/influencer" />;
 
-  // Onay bekleyen influencer → status ekranı
-  if (roles.includes('WITHOUT_APPROVAL_INFLUENCER') && !roles.includes('INFLUENCER')) {
+  // Onay bekleyen influencer → status ekranı (DİĞER TÜM ROLLERE ÖNCELİKLİ)
+  if (roles.includes('WITHOUT_APPROVAL_INFLUENCER')) {
     return <Redirect href="/influencer/status" />;
   }
 
-  // Onaylı influencer ama satıcı değil → influencer paneli
-  const isSeller = roles.includes('SELLER') || roles.includes('SUPER_ADMIN');
-  if (roles.includes('INFLUENCER') && !isSeller) {
+  // Onaylı influencer — ikinci bir rolü olsa bile satıcı paneline ASLA gitmesin
+  if (roles.includes('INFLUENCER')) {
     return <Redirect href="/(influencer-tabs)/dashboard" />;
   }
 

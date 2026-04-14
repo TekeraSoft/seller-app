@@ -6,6 +6,7 @@ import { registerCurrentDeviceForPush } from '@/features/notifications/push';
 import {
   AuthSession,
   getRolesFromToken,
+  getUserIdFromToken,
   getUserTypeFromToken,
   isValidAppToken,
   setAuthSession,
@@ -22,6 +23,7 @@ type AuthContextValue = {
   isLoading: boolean;
   isAuthenticated: boolean;
   userType: UserType;
+  userId: string | null;
   roles: string[];
   signIn: (session: AuthSession) => Promise<void>;
   signOut: () => Promise<void>;
@@ -130,6 +132,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       isLoading,
       isAuthenticated: Boolean(accessToken),
       userType: accessToken ? getUserTypeFromToken(accessToken) : 'unknown',
+      userId: accessToken ? getUserIdFromToken(accessToken) : null,
       roles: accessToken ? getRolesFromToken(accessToken) : [],
       signIn: async (nextSession: AuthSession) => {
         if (!isValidAppToken(nextSession.accessToken)) {

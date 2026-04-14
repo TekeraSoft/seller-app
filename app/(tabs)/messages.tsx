@@ -25,7 +25,7 @@ import { addMessageToTicketing, createSellerTicket, fetchSellerTickets, fetchTic
 import { TicketingItem } from '@/features/ticketing/types';
 import { useAppSelector } from '@/store/hooks';
 
-const WHATSAPP_PHONE = '902422302121';
+const WHATSAPP_PHONE = '905342688385';
 const PAGE_SIZE = 20;
 
 function formatDate(value: string | null): string {
@@ -255,7 +255,7 @@ export default function MessagesScreen() {
               <Ionicons name="logo-whatsapp" size={20} color="#FFFFFF" />
               <View style={styles.buttonTextWrap}>
                 <AppText style={styles.buttonTitle}>WhatsApp Destek</AppText>
-                <AppText style={styles.buttonSubtitle}>+90 (242) 230 21 21</AppText>
+                <AppText style={styles.buttonSubtitle}>+90 (534) 268 83 85</AppText>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#E7FFE8" />
             </Pressable>

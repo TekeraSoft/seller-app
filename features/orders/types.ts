@@ -74,6 +74,9 @@ export type SellerOrderResponse = {
     unitPrice?: number | string;
     discountedUnitPrice?: number | string;
     lineTotal?: number | string;
+    variantColor?: string | null;
+    variantCode?: string | null;
+    variantAttributes?: Array<{ key?: string | null; value?: string | null }> | null;
   }>;
   shippingAddress?: SellerOrderAddressResponse;
   billingAddress?: SellerOrderAddressResponse | null;
@@ -105,6 +108,8 @@ export type SellerOrderLineItem = {
   unitPrice: number;
   lineTotal: number;
   image: string | null;
+  variantCode: string | null;
+  variantAttributes: Array<{ key: string; value: string }>;
 };
 
 export type SellerOrderAddress = {

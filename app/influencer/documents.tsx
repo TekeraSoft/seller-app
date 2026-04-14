@@ -6,7 +6,8 @@ import {
   InfluencerDocumentType,
   LTD_DOCUMENTS,
 } from '@/features/influencer/types';
-import { Ionicons } from '@expo/vector-icons';
+import { useChat } from '@/context/chat-context';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -260,6 +261,7 @@ export default function InfluencerDocumentsScreen() {
   const [uploadingCert, setUploadingCert] = useState(false);
   const [certFileName, setCertFileName] = useState('');
   const [showCertInfo, setShowCertInfo] = useState(false);
+  const { openChat } = useChat();
 
   const handleCompanyTypeChange = async (type: InfluencerCompanyType) => {
     setChangingType(true);
@@ -434,7 +436,14 @@ export default function InfluencerDocumentsScreen() {
           <Ionicons name="chevron-back" size={22} color={PURPLE} />
         </Pressable>
         <Text style={s.topTitle}>Evrak & Banka Bilgileri</Text>
-        <View style={{ width: 34 }} />
+        <Pressable
+          style={({ pressed }) => [s.chatBtn, pressed && { opacity: 0.7 }]}
+          onPress={openChat}
+          hitSlop={10}
+        >
+          <MaterialCommunityIcons name="robot-happy" size={16} color="#fff" />
+          <Text style={s.chatBtnText}>Destek</Text>
+        </Pressable>
       </View>
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -748,6 +757,15 @@ const s = StyleSheet.create({
   },
   backBtn: { width: 34, alignItems: 'center' },
   topTitle: { fontSize: 16, fontWeight: '700', color: '#1C1631' },
+  chatBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    height: 30, borderRadius: 15,
+    paddingHorizontal: 10,
+    backgroundColor: PURPLE,
+    shadowColor: PURPLE, shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25, shadowRadius: 4, elevation: 3,
+  },
+  chatBtnText: { color: '#fff', fontSize: 12, fontWeight: '700' },
 
   scroll: { padding: 16, gap: 14, paddingBottom: 48 },
 

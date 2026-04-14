@@ -12,8 +12,10 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.tekerasoft.tekeramarketplace",
       "version": "1.0.8",
+      "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "LSApplicationQueriesSchemes": ["whatsapp", "tel", "mailto", "sms"]
       }
     },
     "android": {
@@ -38,7 +40,18 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
-      ]
+      ],
+      "@react-native-firebase/app",
+      "@react-native-firebase/messaging",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static"
+          }
+        }
+      ],
+      "./plugins/with-modular-headers.js"
     ],
     "experiments": {
       "typedRoutes": true,

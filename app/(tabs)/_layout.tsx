@@ -239,14 +239,12 @@ export default function TabLayout() {
     return <Redirect href="/auth" />;
   }
 
-  // Influencer (onaylı veya bekleyen) ama satıcı değilse satıcı paneline erişemez
-  const isInfluencer = roles.includes('INFLUENCER') || roles.includes('WITHOUT_APPROVAL_INFLUENCER');
-  const isSeller = roles.includes('SELLER') || roles.includes('SUPER_ADMIN');
-  if (isInfluencer && !isSeller) {
-    if (roles.includes('INFLUENCER')) {
-      return <Redirect href="/(influencer-tabs)/dashboard" />;
-    }
+  // Influencer rolü olan kullanıcı satıcı paneline HİÇBİR koşulda erişemez
+  if (roles.includes('WITHOUT_APPROVAL_INFLUENCER')) {
     return <Redirect href="/influencer/status" />;
+  }
+  if (roles.includes('INFLUENCER')) {
+    return <Redirect href="/(influencer-tabs)/dashboard" />;
   }
 
   // Onaylanmamış satıcı tabları göremez, onboarding ekranına yönlendir
@@ -344,6 +342,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingVertical: 8,
   },
   userBlock: {
     flexDirection: 'row',
@@ -351,9 +350,9 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   avatar: {
-    width: Platform.OS === 'ios' ? 38 : 64,
-    height: Platform.OS === 'ios' ? 38 : 64,
-    borderRadius: Platform.OS === 'ios' ? 12 : 17,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     backgroundColor: '#F0C4A8',
     alignItems: 'center',
     justifyContent: 'center',

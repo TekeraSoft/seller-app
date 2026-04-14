@@ -9,6 +9,7 @@ import { AppText } from '@/components/app-text';
 import { Fonts } from '@/constants/theme';
 import { useTabBarVisible } from '@/lib/tab-bar-visibility';
 import { useAuth } from '@/context/auth-context';
+import { useChat } from '@/context/chat-context';
 import { getMyApplication } from '@/features/influencer/api';
 import type { InfluencerApplication } from '@/features/influencer/types';
 import { fetchUnreadNotificationCount } from '@/features/notifications/api';
@@ -67,6 +68,7 @@ function InfluencerTabBar({ state, descriptors, navigation }: BottomTabBarProps)
 
 function InfluencerHeader() {
   const router = useRouter();
+  const { openChat } = useChat();
   const [profile, setProfile] = useState<InfluencerApplication | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -123,6 +125,9 @@ function InfluencerHeader() {
         </View>
       </View>
       <View style={styles.headerRight}>
+        <Pressable onPress={openChat} hitSlop={8}>
+          <Ionicons name="chatbubble-ellipses-outline" size={22} color="#1E1E1E" />
+        </Pressable>
         <Pressable onPress={() => router.push('/notifications')} style={styles.notificationButton}>
           <Ionicons name="notifications-outline" size={22} color="#1E1E1E" />
           {unreadCount > 0 ? (

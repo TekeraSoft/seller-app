@@ -17,7 +17,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const PURPLE = '#8D73FF';
 const BORDER = '#DDD7FF';
@@ -37,6 +37,7 @@ function isValidUrl(value: string) {
 
 export default function InfluencerRegisterScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { signIn, isAuthenticated, isLoading } = useAuth();
   const [step, setStep] = useState<Step>(1);
 
@@ -172,7 +173,7 @@ export default function InfluencerRegisterScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.root} edges={['bottom']}>
+    <SafeAreaView style={styles.root} edges={[]}>
       <Stack.Screen options={{ title: 'İnfluencer Başvuru', headerBackTitle: '' }} />
 
       {/* KVKK Modal */}
@@ -205,7 +206,11 @@ export default function InfluencerRegisterScreen() {
         </View>
       </Modal>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 8 }]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
 
           {/* Adım indikatörü */}
           <View style={styles.stepIndicator}>
@@ -433,7 +438,7 @@ function ErrorBox({ message }: { message: string }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: BG },
-  scroll: { padding: 20, paddingTop: 12, paddingBottom: 40, gap: 16 },
+  scroll: { padding: 20, paddingTop: 12, gap: 16 },
 
   stepIndicator: {
     flexDirection: 'row', justifyContent: 'center',
