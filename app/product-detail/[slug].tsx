@@ -144,10 +144,13 @@ export default function ProductDetailScreen() {
         Alert.alert(
           'Görseller İndirildi',
           `${downloads.length} görsel indirildi. Paylaşmak için seçin.`,
-          downloads.map((uri, i) => ({
-            text: `Görsel ${i + 1}`,
-            onPress: () => Sharing.shareAsync(uri),
-          })).concat([{ text: 'Kapat', onPress: () => {} }])
+          [
+            ...downloads.map((uri, i) => ({
+              text: `Görsel ${i + 1}`,
+              onPress: async () => { await Sharing.shareAsync(uri); },
+            })),
+            { text: 'Kapat', onPress: async () => {} },
+          ]
         );
       }
     } catch {

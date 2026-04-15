@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "1061184091132",
-    "project_id": "tekera21-notification",
-    "storage_bucket": "tekera21-notification.firebasestorage.app"
+    "project_number": "1012752927050",
+    "project_id": "tekera21-bfbc1",
+    "storage_bucket": "tekera21-bfbc1.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:1061184091132:android:e2931ba1fc154f57223879",
+        "mobilesdk_app_id": "1:1012752927050:android:3b5030c4d45d033d8f59b3",
         "android_client_info": {
           "package_name": "com.tekerasoft.tekeramarketplace"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyC9LP0RiRTHbf0BTtrwwQo3AZQrRswB_i4"
+          "current_key": "AIzaSyCcKNS_y-A0fupYM74dWjpq7NqB0rhihrA"
         }
       ],
       "services": {

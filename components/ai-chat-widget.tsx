@@ -1,7 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
+import { Image } from 'expo-image';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   KeyboardAvoidingView,
   Modal,
@@ -26,10 +30,13 @@ interface Message {
   id: string;
   role: Role;
   text: string;
+  imageUri?: string;
+  isError?: boolean;
 }
 
 interface Props {
   endpoint: string;
+  userId?: string | null;
   welcomeMessage?: string;
   hideFab?: boolean;
   open?: boolean;
@@ -39,8 +46,17 @@ interface Props {
 const DEFAULT_WELCOME =
   'Merhaba! Ben Tekera asistanıyım. Başvuru sürecinizle ilgili sorularınızı yanıtlamak için buradayım. Size nasıl yardımcı olabilirim?';
 
+function generateUuid(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 export function AiChatWidget({
   endpoint,
+  userId = null,
   welcomeMessage = DEFAULT_WELCOME,
   hideFab = false,
   open: openProp,
@@ -55,6 +71,7 @@ export function AiChatWidget({
     onOpenChange?.(next);
   };
   const [input, setInput] = useState('');
+  const [pendingImage, setPendingImage] = useState<{ uri: string; mimeType: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [welcomeTyping, setWelcomeTyping] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -62,7 +79,7 @@ export function AiChatWidget({
   const welcomeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollRef = useRef<ScrollView>(null);
   const inputRef = useRef<TextInput>(null);
-  const sessionId = useRef<string | null>(null);
+  const sessionId = useRef<string>(generateUuid());
 
   const dot1 = useRef(new Animated.Value(0)).current;
   const dot2 = useRef(new Animated.Value(0)).current;
@@ -91,6 +108,20 @@ export function AiChatWidget({
   }
 
   useEffect(() => {
+    sessionId.current = generateUuid();
+    setMessages([]);
+    setInput('');
+    setPendingImage(null);
+    welcomeShownRef.current = false;
+    if (welcomeTimerRef.current) {
+      clearTimeout(welcomeTimerRef.current);
+      welcomeTimerRef.current = null;
+    }
+    setWelcomeTyping(false);
+    stopTypingAnim();
+  }, [userId]);
+
+  useEffect(() => {
     if (!open || welcomeShownRef.current) return;
     welcomeShownRef.current = true;
     setWelcomeTyping(true);
@@ -107,7 +138,7 @@ export function AiChatWidget({
           prev.map((m) => (m.id === 'welcome' ? { ...m, text: welcomeMessage.slice(0, i) } : m)),
         );
         if (i < welcomeMessage.length) {
-          timers.push(setTimeout(step, 22));
+          timers.push(setTimeout(step, 8));
         }
       };
       step();
@@ -118,22 +149,114 @@ export function AiChatWidget({
     };
   }, [open, welcomeMessage]);
 
+  async function pickImage() {
+    if (loading) return;
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert('İzin gerekli', 'Galeriden görsel seçebilmek için fotoğraflara erişim izni vermeniz gerekiyor.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 1,
+      base64: false,
+      allowsEditing: false,
+    });
+    if (result.canceled || !result.assets?.[0]) return;
+
+    const asset = result.assets[0];
+
+    try {
+      const MAX_DIM = 1280;
+      const needsResize = (asset.width ?? 0) > MAX_DIM || (asset.height ?? 0) > MAX_DIM;
+      const manipulated = await ImageManipulator.manipulateAsync(
+        asset.uri,
+        needsResize
+          ? [{ resize: (asset.width ?? 0) >= (asset.height ?? 0) ? { width: MAX_DIM } : { height: MAX_DIM } }]
+          : [],
+        { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG },
+      );
+
+      setPendingImage({ uri: manipulated.uri, mimeType: 'image/jpeg' });
+    } catch (e) {
+      console.warn('[AiChatWidget] image compress error:', e);
+      Alert.alert('Hata', 'Görsel işlenemedi. Lütfen tekrar deneyiniz.');
+    }
+  }
+
+  async function uploadImageToCdn(image: { uri: string; mimeType: string }): Promise<string> {
+    const presignRes = await fetch('https://onlinechat.tekera21.com.tr/upload-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        session_id: sessionId.current,
+        content_type: image.mimeType,
+      }),
+    });
+    if (!presignRes.ok) {
+      const errBody = await presignRes.text().catch(() => '<no body>');
+      console.warn('[AiChatWidget] presign failed', presignRes.status, errBody);
+      throw new Error('upload_presign_failed');
+    }
+    const presign = (await presignRes.json()) as {
+      upload_url: string;
+      public_url: string;
+    };
+
+    const fileRes = await fetch(image.uri);
+    const blob = await fileRes.blob();
+
+    const putRes = await fetch(presign.upload_url, {
+      method: 'PUT',
+      headers: { 'Content-Type': image.mimeType },
+      body: blob,
+    });
+    if (!putRes.ok) {
+      const errBody = await putRes.text().catch(() => '<no body>');
+      console.warn('[AiChatWidget] minio upload failed', putRes.status, errBody);
+      throw new Error('upload_put_failed');
+    }
+
+    return presign.public_url;
+  }
+
   async function sendMessage() {
     const text = input.trim();
-    if (!text || loading) return;
+    const image = pendingImage;
+    if ((!text && !image) || loading) return;
 
-    const userMsg: Message = { id: `u-${Date.now()}`, role: 'user', text };
+    const userMsg: Message = {
+      id: `u-${Date.now()}`,
+      role: 'user',
+      text,
+      imageUri: image?.uri,
+    };
     setMessages((prev) => [...prev, userMsg]);
     setInput('');
+    setPendingImage(null);
     inputRef.current?.clear();
     setLoading(true);
     startTypingAnim();
 
     try {
+      let imageUrl: string | null = null;
+      if (image) {
+        imageUrl = await uploadImageToCdn(image);
+      }
+
+      const body: Record<string, unknown> = {
+        message: text,
+        session_id: sessionId.current,
+      };
+      if (userId) body.user_id = userId;
+      if (imageUrl) body.image_url = imageUrl;
+
+      console.log('[AiChatWidget] POST', endpoint, body);
+
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, session_id: sessionId.current }),
+        body: JSON.stringify(body),
       });
 
       if (res.status === 429) {
@@ -141,29 +264,39 @@ export function AiChatWidget({
       }
 
       if (!res.ok) {
+        const errBody = await res.text().catch(() => '<no body>');
+        console.warn('[AiChatWidget] non-OK response', res.status, errBody);
         throw new Error('server_error');
       }
 
-      const data = (await res.json()) as { reply: string; session_id: string };
-      sessionId.current = data.session_id;
+      const data = (await res.json()) as { reply: string; session_id?: string };
+      if (data.session_id) sessionId.current = data.session_id;
 
       setMessages((prev) => [
         ...prev,
         { id: `a-${Date.now()}`, role: 'ai', text: data.reply },
       ]);
     } catch (err) {
-      const isRateLimit = err instanceof Error && err.message === 'rate_limit';
-      const errMsg = err instanceof Error ? err.message : String(err);
-      console.warn('[AiChatWidget] fetch error:', errMsg);
+      const code = err instanceof Error ? err.message : String(err);
+      console.warn('[AiChatWidget] fetch error:', code);
+
+      let friendlyText: string;
+      if (code === 'rate_limit') {
+        friendlyText = 'Çok fazla mesaj gönderdiniz. Lütfen bir dakika bekleyip tekrar deneyin.';
+      } else if (code === 'upload_presign_failed' || code === 'upload_put_failed') {
+        friendlyText =
+          'Görsel yüklenemedi. Lütfen biraz sonra tekrar deneyiniz ya da farklı bir görsel seçiniz.';
+      } else if (code === 'server_error') {
+        friendlyText =
+          'Asistanımıza şu an ulaşamıyoruz. Birkaç dakika sonra tekrar deneyebilir misiniz? Sorununuz acil ise destek ekibimizle iletişime geçebilirsiniz.';
+      } else {
+        friendlyText =
+          'Mesajınız gönderilemedi. İnternet bağlantınızı kontrol edip tekrar deneyiniz.';
+      }
+
       setMessages((prev) => [
         ...prev,
-        {
-          id: `err-${Date.now()}`,
-          role: 'ai',
-          text: isRateLimit
-            ? 'Çok fazla mesaj gönderdiniz. Lütfen bir dakika bekleyip tekrar deneyin.'
-            : `Bağlantı hatası: ${errMsg}`,
-        },
+        { id: `err-${Date.now()}`, role: 'ai', text: friendlyText, isError: true },
       ]);
     } finally {
       setLoading(false);
@@ -234,16 +367,29 @@ export function AiChatWidget({
                 msg.role === 'user' ? (
                   <View key={msg.id} style={styles.userRow}>
                     <View style={styles.userBubble}>
-                      <Text style={styles.userBubbleText}>{msg.text}</Text>
+                      {msg.imageUri && (
+                        <Image
+                          source={{ uri: msg.imageUri }}
+                          style={styles.userImage}
+                          contentFit="cover"
+                        />
+                      )}
+                      {!!msg.text && <Text style={styles.userBubbleText}>{msg.text}</Text>}
                     </View>
                   </View>
                 ) : (
                   <View key={msg.id} style={styles.aiRow}>
-                    <View style={styles.aiAvatarSmall}>
-                      <Ionicons name="sparkles" size={11} color={PURPLE} />
+                    <View style={[styles.aiAvatarSmall, msg.isError && styles.aiAvatarSmallError]}>
+                      <Ionicons
+                        name={msg.isError ? 'alert-circle' : 'sparkles'}
+                        size={msg.isError ? 13 : 11}
+                        color={msg.isError ? '#DC2626' : PURPLE}
+                      />
                     </View>
-                    <View style={styles.aiBubble}>
-                      <Text style={styles.aiBubbleText}>{msg.text}</Text>
+                    <View style={[styles.aiBubble, msg.isError && styles.aiBubbleError]}>
+                      <Text style={[styles.aiBubbleText, msg.isError && styles.aiBubbleTextError]}>
+                        {msg.text}
+                      </Text>
                     </View>
                   </View>
                 )
@@ -267,8 +413,34 @@ export function AiChatWidget({
               )}
             </ScrollView>
 
+            {/* Pending image preview */}
+            {pendingImage && (
+              <View style={styles.previewWrap}>
+                <Image source={{ uri: pendingImage.uri }} style={styles.previewImage} contentFit="cover" />
+                <Pressable
+                  style={({ pressed }) => [styles.previewRemove, pressed && { opacity: 0.75 }]}
+                  onPress={() => setPendingImage(null)}
+                  hitSlop={8}
+                >
+                  <Ionicons name="close" size={14} color="#fff" />
+                </Pressable>
+              </View>
+            )}
+
             {/* Composer */}
             <View style={[styles.composer, { paddingBottom: Math.max(insets.bottom, 8) + 8 }]}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.attachBtn,
+                  loading && styles.sendBtnDisabled,
+                  pressed && { opacity: 0.7 },
+                ]}
+                onPress={() => void pickImage()}
+                disabled={loading}
+                hitSlop={8}
+              >
+                <Ionicons name="image-outline" size={20} color={PURPLE} />
+              </Pressable>
               <View style={styles.inputWrap}>
                 <TextInput
                   ref={inputRef}
@@ -292,11 +464,11 @@ export function AiChatWidget({
               <Pressable
                 style={({ pressed }) => [
                   styles.sendBtn,
-                  (!input.trim() || loading) && styles.sendBtnDisabled,
+                  (!input.trim() && !pendingImage) || loading ? styles.sendBtnDisabled : null,
                   pressed && { opacity: 0.85 },
                 ]}
                 onPress={() => void sendMessage()}
-                disabled={!input.trim() || loading}
+                disabled={(!input.trim() && !pendingImage) || loading}
               >
                 {loading ? (
                   <ActivityIndicator color="#fff" size="small" />
@@ -405,6 +577,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
+  userImage: {
+    width: 200,
+    height: 200,
+    borderRadius: 12,
+    marginBottom: 6,
+    backgroundColor: '#6D58D9',
+  },
   aiRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -434,6 +613,17 @@ const styles = StyleSheet.create({
     color: '#1C1631',
     fontSize: 14,
     lineHeight: 20,
+  },
+  aiBubbleError: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
+  },
+  aiBubbleTextError: {
+    color: '#B91C1C',
+    fontWeight: '500',
+  },
+  aiAvatarSmallError: {
+    backgroundColor: '#FEE2E2',
   },
 
   // Typing indicator
@@ -503,5 +693,44 @@ const styles = StyleSheet.create({
   },
   sendBtnDisabled: {
     opacity: 0.45,
+  },
+  attachBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#EDE9FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  previewWrap: {
+    position: 'relative',
+    alignSelf: 'flex-start',
+    marginLeft: 16,
+    marginBottom: 8,
+  },
+  previewImage: {
+    width: 72,
+    height: 72,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: BORDER,
+    backgroundColor: '#F1F1F6',
+  },
+  previewRemove: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#1C1631',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
   },
 });

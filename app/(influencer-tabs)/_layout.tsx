@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Redirect, Tabs, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -126,7 +126,7 @@ function InfluencerHeader() {
       </View>
       <View style={styles.headerRight}>
         <Pressable onPress={openChat} hitSlop={8}>
-          <Ionicons name="chatbubble-ellipses-outline" size={22} color="#1E1E1E" />
+          <MaterialCommunityIcons name="robot-outline" size={24} color="#1E1E1E" />
         </Pressable>
         <Pressable onPress={() => router.push('/notifications')} style={styles.notificationButton}>
           <Ionicons name="notifications-outline" size={22} color="#1E1E1E" />

@@ -1,10 +1,34 @@
 import { PhoneInput } from '@/components/phone-input';
 import { applyAsInfluencer, registerUser } from '@/features/influencer/api';
+import type { InfluencerCompanyType } from '@/features/influencer/types';
+import { validateInfluencerProfile } from '@/features/influencer/validators';
 import { useAuth } from '@/context/auth-context';
 import { Ionicons } from '@expo/vector-icons';
-import { isAxiosError } from 'axios';
+import axios from 'axios';
 import { Stack, useRouter } from 'expo-router';
 import { useState, useEffect } from 'react';
+
+function extractApiErrorMessage(err: unknown, fallback = 'Beklenmeyen bir hata oluştu.'): string {
+  if (axios.isAxiosError(err)) {
+    if (!err.response) {
+      if (err.code === 'ECONNABORTED') return 'İstek zaman aşımına uğradı. Lütfen tekrar deneyin.';
+      return 'Sunucuya ulaşılamıyor. İnternet bağlantınızı kontrol edin.';
+    }
+    const data = err.response.data as
+      | { message?: string; data?: { error?: string } | unknown }
+      | undefined;
+    const nestedError =
+      data && typeof data === 'object' && 'data' in data && data.data && typeof data.data === 'object'
+        ? (data.data as { error?: string }).error
+        : undefined;
+    if (data?.message === 'Validation failed' && nestedError) return nestedError;
+    if (typeof data?.message === 'string' && data.message.trim().length > 0) return data.message;
+    if (typeof nestedError === 'string' && nestedError.trim().length > 0) return nestedError;
+    return `Sunucu hatası (HTTP ${err.response.status}).`;
+  }
+  if (err instanceof Error && err.message) return err.message;
+  return fallback;
+}
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -23,17 +47,8 @@ const PURPLE = '#8D73FF';
 const BORDER = '#DDD7FF';
 const BG = '#F7F5FF';
 
-type CompanyType = 'SAHIS' | 'LTD';
+type CompanyType = InfluencerCompanyType;
 type Step = 1 | 2;
-
-function isValidUrl(value: string) {
-  try {
-    const url = new URL(value.trim());
-    return url.protocol === 'http:' || url.protocol === 'https:';
-  } catch {
-    return false;
-  }
-}
 
 export default function InfluencerRegisterScreen() {
   const router = useRouter();
@@ -61,7 +76,7 @@ export default function InfluencerRegisterScreen() {
 
   // Adım 2 — Profil
   const [gsmNumber, setGsmNumber] = useState('');
-  const [companyType, setCompanyType] = useState<CompanyType>('SAHIS');
+  const [companyType, setCompanyType] = useState<CompanyType>('BIREYSEL');
   const [nationalId, setNationalId] = useState('');
   const [taxNumber, setTaxNumber] = useState('');
   const [instagramUrl, setInstagramUrl] = useState('');
@@ -85,14 +100,10 @@ export default function InfluencerRegisterScreen() {
   }
 
   function validateStep2(): string | null {
-    if (gsmNumber.length < 10) return 'Geçerli bir telefon numarası girin.';
-    if (companyType === 'SAHIS' && !nationalId.trim()) return 'TC Kimlik No zorunludur.';
-    if (companyType === 'LTD' && !taxNumber.trim()) return 'Vergi No zorunludur.';
-    if (!instagramUrl.trim()) return 'Instagram linki zorunludur.';
-    if (!isValidUrl(instagramUrl)) return 'Geçerli bir Instagram linki girin.';
-    if (youtubeUrl.trim() && !isValidUrl(youtubeUrl)) return 'Geçerli bir YouTube linki girin.';
-    if (tiktokUrl.trim() && !isValidUrl(tiktokUrl)) return 'Geçerli bir TikTok linki girin.';
-    return null;
+    return validateInfluencerProfile({
+      gsmNumber, companyType, nationalId, taxNumber,
+      instagramUrl, youtubeUrl, tiktokUrl, twitterUrl,
+    });
   }
 
   async function onNext() {
@@ -120,17 +131,10 @@ export default function InfluencerRegisterScreen() {
       await signIn(tokens);
       // useEffect isAuthenticated true olunca setStep(2) yapacak
     } catch (err) {
-      if (isAxiosError(err)) {
-        const raw = (err.response?.data as { message?: string } | undefined)?.message ?? '';
-        const msg = raw.toLowerCase().includes('email') && raw.toLowerCase().includes('use')
-          ? 'Bu e-posta adresi zaten kayıtlı. Lütfen giriş yapın.'
-          : raw || `Hata: HTTP ${err.response?.status}`;
-        setError(msg);
-      } else if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError('Beklenmeyen bir hata oluştu.');
-      }
+      const raw = extractApiErrorMessage(err);
+      const lower = raw.toLowerCase();
+      const isDuplicateEmail = lower.includes('email') && (lower.includes('use') || lower.includes('kayıt'));
+      setError(isDuplicateEmail ? 'Bu e-posta adresi zaten kayıtlı. Lütfen giriş yapın.' : raw);
     } finally {
       setLoading(false);
     }
@@ -152,21 +156,14 @@ export default function InfluencerRegisterScreen() {
       await applyAsInfluencer({
         gsmNumber: gsmNumber ? `0${gsmNumber}` : '',
         companyType,
-        nationalId: companyType === 'SAHIS' ? nationalId.trim() : undefined,
+        nationalId: companyType === 'BIREYSEL' ? nationalId.trim() : undefined,
         taxNumber: companyType === 'LTD' ? taxNumber.trim() : undefined,
         socialLinks,
       });
 
       router.replace('/influencer/status' as any);
     } catch (err) {
-      if (isAxiosError(err)) {
-        const msg = (err.response?.data as { message?: string } | undefined)?.message;
-        setError(msg ?? `Hata: HTTP ${err.response?.status}`);
-      } else if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError('Beklenmeyen bir hata oluştu.');
-      }
+      setError(extractApiErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -336,18 +333,18 @@ export default function InfluencerRegisterScreen() {
               <View style={styles.field}>
                 <Text style={styles.label}>Şirket Tipi</Text>
                 <View style={styles.segmentRow}>
-                  {(['SAHIS', 'LTD'] as CompanyType[]).map((t) => (
+                  {(['BIREYSEL', 'LTD'] as CompanyType[]).map((t) => (
                     <Pressable key={t} style={[styles.segment, companyType === t && styles.segmentActive]}
                       onPress={() => { setCompanyType(t); clearError(); }}>
                       <Text style={[styles.segmentText, companyType === t && styles.segmentTextActive]}>
-                        {t === 'SAHIS' ? 'Şahıs' : 'Ltd / A.Ş.'}
+                        {t === 'BIREYSEL' ? 'Şahıs' : 'Ltd / A.Ş.'}
                       </Text>
                     </Pressable>
                   ))}
                 </View>
               </View>
 
-              {companyType === 'SAHIS' ? (
+              {companyType === 'BIREYSEL' ? (
                 <Field label="TC Kimlik No">
                   <TextInput style={styles.input} value={nationalId} onChangeText={(v) => { setNationalId(v); clearError(); }}
                     placeholder="11 haneli TC Kimlik No" placeholderTextColor="#9A96B5" keyboardType="numeric" maxLength={11} />

@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Pressable,
   ScrollView,
@@ -106,6 +107,21 @@ export default function SettingsScreen() {
             </AppText>
           </Pressable>
         )}
+
+        <Pressable style={styles.profileButton} onPress={() => router.push('/change-password')}>
+          <AppText style={styles.profileText} tone="rounded">
+            Şifre Değiştir
+          </AppText>
+        </Pressable>
+
+        <Pressable
+          style={styles.profileButton}
+          onPress={() => Linking.openURL('https://www.tekera21.com/iletisim')}
+        >
+          <AppText style={styles.profileText} tone="rounded">
+            İletişim
+          </AppText>
+        </Pressable>
 
         <Pressable style={styles.logoutButton} onPress={handleSignOut}>
           <AppText style={styles.logoutText} tone="rounded">

@@ -3,6 +3,7 @@ import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useSt
 
 import { deactivateDeviceToken } from '@/features/notifications/api';
 import { registerCurrentDeviceForPush } from '@/features/notifications/push';
+import { analyticsService } from '@/services/analytics.service';
 import {
   AuthSession,
   getRolesFromToken,
@@ -99,6 +100,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setAuthSessionListener(undefined);
     };
   }, []);
+
+  useEffect(() => {
+    const accessToken = session?.accessToken;
+    const nextUserId = accessToken ? getUserIdFromToken(accessToken) : null;
+    void analyticsService.setUserId(nextUserId);
+  }, [session?.accessToken]);
 
   useEffect(() => {
     if (!session?.accessToken) return;

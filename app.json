@@ -2,7 +2,7 @@
   "expo": {
     "name": "Tekera21 Partner",
     "slug": "seller-app",
-    "version": "1.0.7",
+    "version": "1.0.8",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "sellerapp",
@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.tekerasoft.tekeramarketplace",
-      "version": "1.0.8",
+      "version": "1.0.9",
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
@@ -32,6 +32,12 @@
     "plugins": [
       "expo-router",
       "expo-notifications",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Fotoğraflarınızı sohbette asistan ile paylaşmak için galeriye erişim izni gerekiyor."
+        }
+      ],
       [
         "expo-splash-screen",
         {

@@ -317,7 +317,7 @@ export default function InfProfileScreen() {
             <DetailRow label="Soyad" value={app.surname} />
             <DetailRow label="E-posta" value={app.userEmail} />
             <DetailRow label="Telefon" value={app.gsmNumber} />
-            <DetailRow label="Şirket Tipi" value={app.companyType === 'SAHIS' ? 'Şahıs' : 'Limited Şirket'} />
+            <DetailRow label="Şirket Tipi" value={app.companyType === 'BIREYSEL' ? 'Şahıs' : 'Limited Şirket'} />
             {app.nationalId && <DetailRow label="TC Kimlik No" value={app.nationalId} />}
             {app.taxNumber && <DetailRow label="Vergi No" value={app.taxNumber} />}
             {Object.entries(app.socialLinks ?? {}).map(([platform, url]) => (

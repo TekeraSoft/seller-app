@@ -1,4 +1,4 @@
-﻿import { Ionicons } from '@expo/vector-icons';
+﻿import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
@@ -11,6 +11,7 @@ import { AppText } from '@/components/app-text';
 import { Fonts } from '@/constants/theme';
 import { useTabBarVisible } from '@/lib/tab-bar-visibility';
 import { useAuth } from '@/context/auth-context';
+import { useChat } from '@/context/chat-context';
 import { fetchUnreadNotificationCount } from '@/features/notifications/api';
 import { addLocalTicketReplyNotification, getLocalUnreadCount } from '@/features/notifications/local-notifications';
 import { fetchSellerTickets } from '@/features/ticketing/api';
@@ -163,6 +164,7 @@ function SellerHeader() {
     profile: { basicId, logo: sellerLogo, name: sellerName },
   } = useAppSelector((state) => state.seller);
   const router = useRouter();
+  const { openChat } = useChat();
   const [unreadCount, setUnreadCount] = useState(0);
 
   const loadUnreadCount = useCallback(async () => {
@@ -213,6 +215,9 @@ function SellerHeader() {
       </View>
 
       <View style={styles.headerActions}>
+        <Pressable onPress={openChat} hitSlop={8}>
+          <MaterialCommunityIcons name="robot-outline" size={26} color="#1E1E1E" />
+        </Pressable>
         <Pressable onPress={() => router.push('/notifications')} style={styles.notificationButton}>
           <Ionicons name="notifications-outline" size={24} color="#1E1E1E" />
           {unreadCount > 0 ? (

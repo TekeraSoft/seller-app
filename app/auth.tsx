@@ -16,6 +16,7 @@ import {
 
 import { useAuth } from '@/context/auth-context';
 import { API_BASE_URL, api } from '@/lib/api';
+import { analyticsService } from '@/services/analytics.service';
 
 const { width, height } = Dimensions.get('window');
 
@@ -76,6 +77,7 @@ export default function AuthScreen() {
         accessToken: responseToken.trim(),
         refreshToken: responseRefreshToken.trim(),
       });
+      void analyticsService.logSellerLogin('email');
     } catch (err) {
       if (isAxiosError(err)) {
         const messageFromApi = (err.response?.data as { message?: string } | undefined)?.message ?? null;
@@ -167,6 +169,14 @@ export default function AuthScreen() {
             <Pressable style={({ pressed }) => [styles.loginButton, pressed && styles.pressed]} onPress={onLogin}>
               <Text style={styles.loginButtonText}>Giriş Yap</Text>
             </Pressable>
+
+            <Pressable
+              style={styles.forgotLink}
+              onPress={() => router.push('/forgot-password' as any)}
+              hitSlop={8}
+            >
+              <Text style={styles.forgotLinkText}>Şifremi Unuttum</Text>
+            </Pressable>
           </View>
 
           {/* Ayırıcı */}
@@ -182,13 +192,6 @@ export default function AuthScreen() {
             onPress={() => router.push('/register/influencer' as any)}
           >
             <Text style={styles.outlineButtonText}>✦  İnfluencer Başvuru</Text>
-          </Pressable>
-
-          <Pressable
-            style={({ pressed }) => [styles.filledButton, pressed && styles.pressed]}
-            onPress={() => router.push('/register' as any)}
-          >
-            <Text style={styles.filledButtonText}>🏪  Satıcı Başvuru</Text>
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -360,6 +363,21 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
 
+  /* ── Şifremi unuttum ── */
+  forgotLink: {
+    alignSelf: 'center',
+    marginTop: 14,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    cursor: 'pointer' as any,
+  },
+  forgotLinkText: {
+    color: PURPLE,
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0.2,
+  },
+
   /* ── Ayırıcı ── */
   dividerRow: {
     flexDirection: 'row',
@@ -390,24 +408,6 @@ const styles = StyleSheet.create({
   },
   outlineButtonText: {
     color: PURPLE,
-    fontSize: 15,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-  filledButton: {
-    height: 52,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#1a1a2e',
-    shadowColor: '#1a1a2e',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 4,
-  },
-  filledButtonText: {
-    color: '#ffffff',
     fontSize: 15,
     fontWeight: '700',
     letterSpacing: 0.3,

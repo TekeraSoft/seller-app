@@ -1,11 +1,34 @@
 import { PhoneInput } from '@/components/phone-input';
 import { applyAsInfluencer, getMyApplication } from '@/features/influencer/api';
 import type { InfluencerCompanyType } from '@/features/influencer/types';
+import { validateInfluencerProfile } from '@/features/influencer/validators';
 import { useAuth } from '@/context/auth-context';
 import { useChat } from '@/context/chat-context';
 import { getSellerIdentityFromAccessToken } from '@/lib/api';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { isAxiosError } from 'axios';
+import axios from 'axios';
+
+function extractApiErrorMessage(err: unknown, fallback = 'Beklenmeyen bir hata oluştu.'): string {
+  if (axios.isAxiosError(err)) {
+    if (!err.response) {
+      if (err.code === 'ECONNABORTED') return 'İstek zaman aşımına uğradı. Lütfen tekrar deneyin.';
+      return 'Sunucuya ulaşılamıyor. İnternet bağlantınızı kontrol edin.';
+    }
+    const data = err.response.data as
+      | { message?: string; data?: { error?: string } | unknown }
+      | undefined;
+    const nestedError =
+      data && typeof data === 'object' && 'data' in data && data.data && typeof data.data === 'object'
+        ? (data.data as { error?: string }).error
+        : undefined;
+    if (data?.message === 'Validation failed' && nestedError) return nestedError;
+    if (typeof data?.message === 'string' && data.message.trim().length > 0) return data.message;
+    if (typeof nestedError === 'string' && nestedError.trim().length > 0) return nestedError;
+    return `Sunucu hatası (HTTP ${err.response.status}).`;
+  }
+  if (err instanceof Error && err.message) return err.message;
+  return fallback;
+}
 import { Redirect, Stack, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -23,11 +46,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const P = '#8D73FF';
-
-function isValidUrl(v: string) {
-  try { const u = new URL(v.trim()); return u.protocol === 'http:' || u.protocol === 'https:'; }
-  catch { return false; }
-}
 
 function BlinkingWarning() {
   const opacity = useRef(new Animated.Value(1)).current;
@@ -84,13 +102,16 @@ export default function InfluencerApplyScreen() {
   const ce = () => { if (error) setError(''); };
 
   function validate() {
-    if (gsmNumber.length < 10) return 'Geçerli bir telefon numarası girin.';
-    if (companyType === 'BIREYSEL' && !nationalId.trim()) return 'TC Kimlik No zorunludur.';
-    if (companyType === 'LTD' && !taxNumber.trim()) return 'Vergi No zorunludur.';
-    if (!instagram.trim() || !isValidUrl(instagram)) return 'Geçerli bir Instagram linki zorunludur.';
-    if (youtube.trim() && !isValidUrl(youtube)) return 'Geçerli bir YouTube linki girin.';
-    if (tiktok.trim() && !isValidUrl(tiktok)) return 'Geçerli bir TikTok linki girin.';
-    return null;
+    return validateInfluencerProfile({
+      gsmNumber,
+      companyType,
+      nationalId,
+      taxNumber,
+      instagramUrl: instagram,
+      youtubeUrl: youtube,
+      tiktokUrl: tiktok,
+      twitterUrl: twitter,
+    });
   }
 
   async function onSubmit() {
@@ -113,13 +134,7 @@ export default function InfluencerApplyScreen() {
       });
       router.replace('/influencer/status' as any);
     } catch (e) {
-      if (isAxiosError(e)) {
-        setError((e.response?.data as any)?.message ?? `HTTP ${e.response?.status}`);
-      } else if (e instanceof Error) {
-        setError(e.message);
-      } else {
-        setError('Beklenmeyen bir hata oluştu.');
-      }
+      setError(extractApiErrorMessage(e));
     } finally {
       setLoading(false);
     }

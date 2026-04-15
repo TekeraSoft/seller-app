@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
 import * as SplashScreen from 'expo-splash-screen';
-import { Stack, router as expoRouter, useRouter } from 'expo-router';
+import { Stack, router as expoRouter, useRouter, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef } from 'react';
 import { Platform, Pressable, Text, View } from 'react-native';
@@ -34,11 +34,41 @@ const renderIosBackButton = () => <IosBackButton />;
 
 import { VersionGuard } from '@/components/app-update/version-guard';
 import { SellerBootstrap } from '@/components/bootstrap/seller-bootstrap';
+import { OfflineBanner } from '@/components/offline-banner';
 import { AuthProvider, useAuth } from '@/context/auth-context';
 import { ChatProvider } from '@/context/chat-context';
 import { routeDeepLink, getDefaultRoute } from '@/features/notifications/deep-link-router';
 import { findSellerOrderIdByOrderNo } from '@/features/orders/api';
+import { analyticsService } from '@/services/analytics.service';
 import { store } from '@/store';
+
+function normalizeScreenName(pathname: string): string {
+  const cleaned = pathname.replace(/^\/+/, '') || 'home';
+  return cleaned
+    .split('/')
+    .map((seg) => {
+      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(seg)) return '[id]';
+      if (/\d/.test(seg) && seg.length > 8) return '[slug]';
+      return seg;
+    })
+    .join('/');
+}
+
+function ScreenTracker() {
+  const pathname = usePathname();
+  const lastTracked = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!pathname) return;
+    if (lastTracked.current === pathname) return;
+    lastTracked.current = pathname;
+
+    const screenName = normalizeScreenName(pathname);
+    analyticsService.logScreenView(screenName);
+  }, [pathname]);
+
+  return null;
+}
 
 function NotificationRouter() {
   const router = useRouter();
@@ -140,6 +170,7 @@ export default function RootLayout() {
           <SellerBootstrap />
           <VersionGuard />
           <NotificationRouter />
+          <ScreenTracker />
           <ChatProvider>
             <ThemeProvider value={DefaultTheme}>
               <Stack
@@ -149,6 +180,7 @@ export default function RootLayout() {
                 }}>
                 <Stack.Screen name="index" options={{ headerShown: false, headerLeft: undefined }} />
                 <Stack.Screen name="auth" options={{ title: 'Giriş', headerShown: false, headerLeft: undefined }} />
+                <Stack.Screen name="forgot-password" options={{ headerShown: false, headerLeft: undefined }} />
                 <Stack.Screen name="register/index" options={{ headerShown: false, headerLeft: undefined }} />
                 <Stack.Screen name="(tabs)" options={{ headerShown: false, headerLeft: undefined }} />
                 <Stack.Screen name="influencer" options={{ headerShown: false, headerLeft: undefined }} />
@@ -156,6 +188,7 @@ export default function RootLayout() {
                 <Stack.Screen name="product-detail" options={{ headerShown: false, headerLeft: undefined }} />
                 <Stack.Screen name="notifications" options={{ title: 'Bildirimler' }} />
                 <Stack.Screen name="settings" options={{ title: 'Ayarlar' }} />
+                <Stack.Screen name="change-password" options={{ title: 'Şifre Değiştir' }} />
                 <Stack.Screen
                   name="seller-profile"
                   options={{ title: 'Satıcı Profili', headerBackVisible: false, headerLeft: undefined }}
@@ -171,6 +204,7 @@ export default function RootLayout() {
           </ChatProvider>
         </Provider>
       </AuthProvider>
+      <OfflineBanner />
     </GestureHandlerRootView>
   );
 }

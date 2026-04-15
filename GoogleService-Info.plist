@@ -3,17 +3,17 @@
 <plist version="1.0">
 <dict>
 	<key>API_KEY</key>
-	<string>AIzaSyAzSBJrVtnn2DdXlEMfVTkXfaigaGuvCKs</string>
+	<string>AIzaSyAwPfxoyFtkWpDvgjybm8XyWdUamLCW3Nw</string>
 	<key>GCM_SENDER_ID</key>
-	<string>1061184091132</string>
+	<string>1012752927050</string>
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
 	<string>com.tekerasoft.tekeramarketplace</string>
 	<key>PROJECT_ID</key>
-	<string>tekera21-notification</string>
+	<string>tekera21-bfbc1</string>
 	<key>STORAGE_BUCKET</key>
-	<string>tekera21-notification.firebasestorage.app</string>
+	<string>tekera21-bfbc1.firebasestorage.app</string>
 	<key>IS_ADS_ENABLED</key>
 	<false></false>
 	<key>IS_ANALYTICS_ENABLED</key>
@@ -25,6 +25,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:1061184091132:ios:0851c6cf86ee7835223879</string>
+	<string>1:1012752927050:ios:0a084318078567868f59b3</string>
 </dict>
 </plist>
