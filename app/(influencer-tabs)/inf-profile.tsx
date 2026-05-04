@@ -649,4 +649,5 @@ const s = StyleSheet.create({
   msgSender: { fontSize: 11, fontWeight: '700', color: '#8D73FF', marginBottom: 4 },
   msgContent: { fontSize: 13, color: '#3D3660', lineHeight: 19 },
   msgTime: { fontSize: 10, color: '#9A96B5', marginTop: 4, textAlign: 'right' },
+
 });

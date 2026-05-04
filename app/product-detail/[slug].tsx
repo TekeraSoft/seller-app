@@ -78,7 +78,10 @@ function getTotalSellerCount(detail: CatalogDetailDto): number {
 }
 
 export default function ProductDetailScreen() {
-  const { slug } = useLocalSearchParams<{ slug: string }>();
+  const { slug, variantCode: variantCodeParam } = useLocalSearchParams<{
+    slug: string;
+    variantCode?: string;
+  }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -92,16 +95,40 @@ export default function ProductDetailScreen() {
   useEffect(() => {
     if (!slug) return;
     setLoading(true);
-    fetchCatalogDetail(slug)
+    fetchCatalogDetail(slug, typeof variantCodeParam === 'string' ? variantCodeParam : undefined)
       .then((data) => {
         setDetail(data);
-        if (data.variants?.length > 0) {
-          setSelectedVariant(data.variants[0]);
+        const variants = data.variants ?? [];
+        if (variants.length === 0) {
+          setSelectedVariant(null);
+          return;
         }
+        // Stoklu + aktif satıcısı olan varyantlar (backend zaten active+stock>0 filtreli listings döner)
+        const inStock = variants.filter((v) => (v.listings?.length ?? 0) > 0);
+        const pool = inStock.length > 0 ? inStock : variants;
+
+        // 1) URL'deki variantCode varsa önce stoklu havuzdan, yoksa tüm variants'tan ara
+        if (typeof variantCodeParam === 'string' && variantCodeParam) {
+          const matched =
+            pool.find((v) => v.variantCode === variantCodeParam) ??
+            variants.find((v) => v.variantCode === variantCodeParam);
+          if (matched) {
+            setSelectedVariant(matched);
+            return;
+          }
+        }
+        // 2) Stoklu variantlardan en düşük bestPrice — card mantığı ile uyumlu
+        const best = pool.reduce<CatalogVariantDto | null>((acc, v) => {
+          const price = v.bestPrice;
+          if (price == null) return acc;
+          if (!acc || (acc.bestPrice ?? Infinity) > price) return v;
+          return acc;
+        }, null);
+        setSelectedVariant(best ?? pool[0] ?? variants[0]);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [slug]);
+  }, [slug, variantCodeParam]);
 
   const [linkCreating, setLinkCreating] = useState(false);
   const [linkCreated, setLinkCreated] = useState(false);
@@ -162,18 +189,27 @@ export default function ProductDetailScreen() {
 
   useEffect(() => {
     if (!detail?.catalogId) return;
-    getMyLinks().then((links) => {
-      if (links.some((l) => l.catalogId === detail.catalogId && l.active)) {
-        setLinkCreated(true);
-      }
-    }).catch(() => {}).finally(() => setLinkChecked(true));
-  }, [detail?.catalogId]);
+    setLinkCreated(false);
+    const currentVariant = selectedVariant?.variantCode ?? null;
+    getMyLinks()
+      .then((links) => {
+        const exists = links.some(
+          (l) =>
+            l.catalogId === detail.catalogId &&
+            l.active &&
+            (l.variantCode ?? null) === currentVariant
+        );
+        if (exists) setLinkCreated(true);
+      })
+      .catch(() => {})
+      .finally(() => setLinkChecked(true));
+  }, [detail?.catalogId, selectedVariant?.variantCode]);
 
   const handleLink = async () => {
     if (!detail?.catalogId || linkCreated) return;
     setLinkCreating(true);
     try {
-      const link = await createInfluencerLink(detail.catalogId);
+      const link = await createInfluencerLink(detail.catalogId, selectedVariant?.variantCode ?? null);
       setLinkCreated(true);
       Alert.alert(
         'Referans Linki Oluşturuldu',
@@ -226,15 +262,33 @@ export default function ProductDetailScreen() {
     ? resolvePublicAssetUrl(images[selectedImageIndex])
     : null;
 
-  // Renkler — unique by color name
-  const seenColors = new Set<string>();
-  const colors = (detail.variants ?? [])
-    .filter((v) => {
-      if (!v.color || seenColors.has(v.color)) return false;
-      seenColors.add(v.color);
-      return true;
-    })
-    .map((v) => ({ code: v.variantCode, color: v.color!, imageUrl: v.imageUrls?.[0] }));
+  // Renkler — her renk için stoklu + en düşük bestPrice'lı variant temsilcisi
+  const colorMap = new Map<string, CatalogVariantDto>();
+  for (const v of detail.variants ?? []) {
+    if (!v.color) continue;
+    const hasStock = (v.listings?.length ?? 0) > 0;
+    const existing = colorMap.get(v.color);
+    if (!existing) {
+      colorMap.set(v.color, v);
+      continue;
+    }
+    const existingHasStock = (existing.listings?.length ?? 0) > 0;
+    // Stoklu olanı tercih et; ikisi de stoklu/stoksuz ise en düşük fiyat
+    if (hasStock && !existingHasStock) {
+      colorMap.set(v.color, v);
+      continue;
+    }
+    if (!hasStock && existingHasStock) continue;
+    if ((v.bestPrice ?? Infinity) < (existing.bestPrice ?? Infinity)) {
+      colorMap.set(v.color, v);
+    }
+  }
+  const colors = Array.from(colorMap.values()).map((v) => ({
+    code: v.variantCode,
+    color: v.color!,
+    imageUrl: v.imageUrls?.[0],
+    inStock: (v.listings?.length ?? 0) > 0,
+  }));
 
   // Satıcılar (seçili variant'ın listing'leri)
   const sellers = selectedVariant?.listings ?? [];
@@ -394,10 +448,10 @@ export default function ProductDetailScreen() {
             <AppText style={s.sectionTitle}>Renk ({colors.length})</AppText>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.colorList}>
               {colors.map((c) => {
-                const isSelected = selectedVariant?.variantCode === c.code;
+                const isSelected = selectedVariant?.color === c.color;
                 return (
                   <Pressable
-                    key={c.code}
+                    key={c.color}
                     style={[s.colorItem, isSelected && s.colorItemActive]}
                     onPress={() => {
                       const v = detail.variants.find((vr) => vr.variantCode === c.code);
@@ -408,12 +462,20 @@ export default function ProductDetailScreen() {
                     }}
                   >
                     {c.imageUrl ? (
-                      <Image source={{ uri: resolvePublicAssetUrl(c.imageUrl) }} style={s.colorImg} resizeMode="cover" />
+                      <Image
+                        source={{ uri: resolvePublicAssetUrl(c.imageUrl) }}
+                        style={[s.colorImg, !c.inStock && { opacity: 0.45 }]}
+                        resizeMode="cover"
+                      />
                     ) : (
-                      <View style={[s.colorImg, { backgroundColor: '#EEEDF5' }]} />
+                      <View style={[s.colorImg, { backgroundColor: '#EEEDF5' }, !c.inStock && { opacity: 0.45 }]} />
                     )}
-                    <AppText style={[s.colorLabel, isSelected && { color: P }]} numberOfLines={1}>
+                    <AppText
+                      style={[s.colorLabel, isSelected && { color: P }, !c.inStock && { color: '#9A96B5' }]}
+                      numberOfLines={1}
+                    >
                       {c.color}
+                      {!c.inStock ? ' · Tükendi' : ''}
                     </AppText>
                   </Pressable>
                 );

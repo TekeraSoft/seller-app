@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -15,10 +15,13 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
+import { CategoryDrawer, CategorySelection } from '@/components/influencer/category-drawer';
 import { Fonts } from '@/constants/theme';
 import {
+  CampaignUiDto,
   CatalogListingDto,
   CategoryDto,
+  fetchActiveCampaigns,
   fetchCategories,
   fetchFilteredCatalogs,
 } from '@/features/influencer/product-api';
@@ -26,120 +29,72 @@ import { resolvePublicAssetUrl } from '@/features/seller/mappers';
 
 const P = '#8D73FF';
 
-const CATEGORY_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
-  elektronik: 'phone-portrait-outline',
-  telefon: 'phone-portrait-outline',
-  bilgisayar: 'laptop-outline',
-  giyim: 'shirt-outline',
-  kadın: 'woman-outline',
-  erkek: 'man-outline',
-  çocuk: 'happy-outline',
-  bebek: 'happy-outline',
-  ayakkabı: 'footsteps-outline',
-  çanta: 'bag-outline',
-  aksesuar: 'watch-outline',
-  takı: 'diamond-outline',
-  mücevher: 'diamond-outline',
-  kozmetik: 'color-palette-outline',
-  güzellik: 'color-palette-outline',
-  bakım: 'flower-outline',
-  parfüm: 'flask-outline',
-  sağlık: 'medkit-outline',
-  spor: 'fitness-outline',
-  outdoor: 'compass-outline',
-  ev: 'home-outline',
-  mobilya: 'bed-outline',
-  mutfak: 'restaurant-outline',
-  dekorasyon: 'color-wand-outline',
-  kitap: 'book-outline',
-  kırtasiye: 'pencil-outline',
-  oyuncak: 'game-controller-outline',
-  hobi: 'color-palette-outline',
-  otomotiv: 'car-outline',
-  pet: 'paw-outline',
-  evcil: 'paw-outline',
-  gıda: 'nutrition-outline',
-  süpermarket: 'cart-outline',
-  bahçe: 'leaf-outline',
-  aydınlatma: 'bulb-outline',
-  tekstil: 'shirt-outline',
-  saat: 'watch-outline',
-  gözlük: 'glasses-outline',
-  müzik: 'musical-notes-outline',
-  kamera: 'camera-outline',
-  'hediyelik eşya': 'gift-outline',
-  hediye: 'gift-outline',
-};
-
-function getCategoryIcon(name: string): keyof typeof Ionicons.glyphMap {
-  const lower = name.toLowerCase();
-  for (const [key, icon] of Object.entries(CATEGORY_ICONS)) {
-    if (lower.includes(key)) return icon;
-  }
-  return 'pricetag-outline';
-}
+const DEFAULT_SORT = 'POPULAR';
 
 const SORT_OPTIONS = [
-  { key: '', label: 'Varsayılan' },
+  { key: 'POPULAR', label: 'Önerilen' },
+  { key: 'NEW_ARRIVALS', label: 'En Yeniler' },
+  { key: 'DISCOUNT_DESC', label: 'En Yüksek İndirim' },
   { key: 'PRICE_ASC', label: 'Fiyat: Düşükten Yükseğe' },
   { key: 'PRICE_DESC', label: 'Fiyat: Yüksekten Düşüğe' },
-  { key: 'NEWEST', label: 'En Yeniler' },
-  { key: 'MOST_POPULAR', label: 'En Popüler' },
 ];
 
 export default function ProductsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const params = useLocalSearchParams<{ campaignId?: string; campaignName?: string }>();
 
   const [products, setProducts] = useState<CatalogListingDto[]>([]);
   const [categories, setCategories] = useState<CategoryDto[]>([]);
+  const [campaigns, setCampaigns] = useState<CampaignUiDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
-  const [hasSearched, setHasSearched] = useState(false);
-
   // Filtreler
   const [keyword, setKeyword] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
-  const [selectedSort, setSelectedSort] = useState('');
+  const [selectedSort, setSelectedSort] = useState(DEFAULT_SORT);
   const [filterVisible, setFilterVisible] = useState(false);
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
   const [onlyDiscount, setOnlyDiscount] = useState(false);
   const [availableBrands, setAvailableBrands] = useState<string[]>([]);
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
+  const [selectedCampaignName, setSelectedCampaignName] = useState<string | null>(null);
+  const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null);
+  const [selectedGender, setSelectedGender] = useState<string | null>(null);
+  const [categoryDrawerVisible, setCategoryDrawerVisible] = useState(false);
 
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [searchText, setSearchText] = useState('');
 
-  // Kategorileri yükle
+  // Kategorileri ve aktif kampanyaları yükle
   useEffect(() => {
-    fetchCategories()
-      .then(setCategories)
-      .catch(() => {});
+    fetchCategories().then(setCategories).catch(() => {});
+    fetchActiveCampaigns(20).then(setCampaigns).catch(() => {});
   }, []);
 
-  const hasActiveFilter = keyword.length > 0 || selectedCategory != null;
+  // Dashboard'dan campaign deep-link ile gelindi → initial filter set et
+  useEffect(() => {
+    if (params.campaignId && typeof params.campaignId === 'string') {
+      setSelectedCampaignId(params.campaignId);
+      setSelectedCampaignName(typeof params.campaignName === 'string' ? params.campaignName : null);
+    }
+  }, [params.campaignId, params.campaignName]);
 
   const fetchPage = useCallback(async (pageNum: number, reset: boolean) => {
-    if (!hasActiveFilter) {
-      setProducts([]);
-      setTotalCount(0);
-      setHasSearched(false);
-      setHasMore(false);
-      return;
-    }
-
     if (reset) setLoading(true);
     else setLoadingMore(true);
-    setHasSearched(true);
 
     try {
       const res = await fetchFilteredCatalogs({
         keyword: keyword || undefined,
         categoryId: selectedCategory || undefined,
+        campaignId: selectedCampaignId || undefined,
+        gender: selectedGender || undefined,
         sort: selectedSort || undefined,
         minPrice: minPrice ? Number(minPrice) : undefined,
         maxPrice: maxPrice ? Number(maxPrice) : undefined,
@@ -166,7 +121,7 @@ export default function ProductsScreen() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [keyword, selectedCategory, selectedSort, minPrice, maxPrice, onlyDiscount, selectedBrands, hasActiveFilter]);
+  }, [keyword, selectedCategory, selectedCampaignId, selectedGender, selectedSort, minPrice, maxPrice, onlyDiscount, selectedBrands]);
 
   // Filtre değişince ilk sayfayı yükle
   useEffect(() => {
@@ -190,20 +145,31 @@ export default function ProductsScreen() {
 
   const clearFilters = () => {
     setSelectedCategory(null as any);
-    setSelectedSort('');
+    setSelectedCategoryName(null);
+    setSelectedGender(null);
+    setSelectedSort(DEFAULT_SORT);
     setMinPrice('');
     setMaxPrice('');
     setOnlyDiscount(false);
     setSelectedBrands([]);
+    setSelectedCampaignId(null);
+    setSelectedCampaignName(null);
     setFilterVisible(false);
   };
 
+  const handleCategorySelect = (sel: CategorySelection) => {
+    setSelectedCategory(sel.categoryId);
+    setSelectedCategoryName(sel.categoryName);
+    setSelectedGender(sel.gender);
+    setCategoryDrawerVisible(false);
+  };
+
   const activeFilterCount =
-    (selectedCategory != null ? 1 : 0) +
-    (selectedSort ? 1 : 0) +
+    (selectedSort && selectedSort !== DEFAULT_SORT ? 1 : 0) +
     (minPrice || maxPrice ? 1 : 0) +
     (onlyDiscount ? 1 : 0) +
-    (selectedBrands.length > 0 ? 1 : 0);
+    (selectedBrands.length > 0 ? 1 : 0) +
+    (selectedCampaignId != null ? 1 : 0);
 
   const formatPrice = (price: number) =>
     price.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' TL';
@@ -214,7 +180,13 @@ export default function ProductsScreen() {
     return (
       <Pressable
         style={s.productCard}
-        onPress={() => router.push(`/product-detail/${item.slug}` as any)}
+        onPress={() =>
+          router.push(
+            (item.bestVariantCode
+              ? `/product-detail/${item.slug}?variantCode=${encodeURIComponent(item.bestVariantCode)}`
+              : `/product-detail/${item.slug}`) as any
+          )
+        }
       >
         <View style={s.productImageWrap}>
           {imageUrl ? (
@@ -229,6 +201,12 @@ export default function ProductsScreen() {
               <AppText style={s.discountText}>
                 %{Math.round(((item.originalBestPrice - item.bestPrice) / item.originalBestPrice) * 100)}
               </AppText>
+            </View>
+          )}
+          {item.campaigns?.some((c) => !!c?.id && c.isActive === true) && (
+            <View style={s.campaignBadge}>
+              <Ionicons name="flame" size={8} color="#fff" />
+              <AppText style={s.campaignText}>Kampanya</AppText>
             </View>
           )}
         </View>
@@ -285,7 +263,17 @@ export default function ProductsScreen() {
             )}
           </View>
           <Pressable
-            style={[s.filterBtn, activeFilterCount > 0 && s.filterBtnActive]}
+            style={[s.iconBtn, selectedCategory != null && s.iconBtnActive]}
+            onPress={() => setCategoryDrawerVisible(true)}
+          >
+            <Ionicons
+              name="grid-outline"
+              size={20}
+              color={selectedCategory != null ? '#fff' : P}
+            />
+          </Pressable>
+          <Pressable
+            style={[s.iconBtn, activeFilterCount > 0 && s.iconBtnActive]}
             onPress={() => setFilterVisible(true)}
           >
             <Ionicons name="options-outline" size={20} color={activeFilterCount > 0 ? '#fff' : P} />
@@ -297,34 +285,51 @@ export default function ProductsScreen() {
           </Pressable>
         </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={s.categoryList}
-          style={s.categoryScroll}
-        >
-          {categories.map((cat) => {
-            const isSelected = selectedCategory === cat.id;
-            return (
-              <Pressable
-                key={cat.id}
-                style={[s.categoryChip, isSelected && s.categoryChipActive]}
-                onPress={() => setSelectedCategory(isSelected ? null : cat.id)}
-              >
-                <Ionicons
-                  name={getCategoryIcon(cat.name)}
-                  size={14}
-                  color={isSelected ? '#FFFFFF' : P}
-                />
-                <AppText style={[s.categoryChipText, isSelected && s.categoryChipTextActive]}>
-                  {cat.name}
-                </AppText>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+        {/* Aktif kategori vurgusu */}
+        {selectedCategory != null && (
+          <View style={s.activeCategoryBar}>
+            <View style={s.activeCategoryLeft}>
+              <Ionicons name="grid" size={13} color={P} />
+              <AppText style={s.activeCategoryText} numberOfLines={1}>
+                {selectedCategoryName ?? 'Kategori'}
+                {selectedGender ? ` · ${selectedGender}` : ''}
+              </AppText>
+            </View>
+            <Pressable
+              hitSlop={8}
+              onPress={() => {
+                setSelectedCategory(null);
+                setSelectedCategoryName(null);
+                setSelectedGender(null);
+              }}
+            >
+              <Ionicons name="close-circle" size={16} color={P} />
+            </Pressable>
+          </View>
+        )}
 
-        {hasSearched && !loading && (
+        {/* Aktif kampanya seçili ise vurgu */}
+        {selectedCampaignId && (
+          <View style={s.activeCampaignBar}>
+            <View style={s.activeCampaignLeft}>
+              <Ionicons name="megaphone" size={13} color="#B45309" />
+              <AppText style={s.activeCampaignText} numberOfLines={1}>
+                Kampanya: {selectedCampaignName ?? 'Seçili'}
+              </AppText>
+            </View>
+            <Pressable
+              hitSlop={8}
+              onPress={() => {
+                setSelectedCampaignId(null);
+                setSelectedCampaignName(null);
+              }}
+            >
+              <Ionicons name="close-circle" size={16} color="#B45309" />
+            </Pressable>
+          </View>
+        )}
+
+        {!loading && totalCount > 0 && (
           <View style={s.resultRow}>
             <AppText style={s.resultText}>{totalCount} ürün bulundu</AppText>
           </View>
@@ -332,17 +337,7 @@ export default function ProductsScreen() {
       </View>
 
       {/* İçerik */}
-      {!hasSearched ? (
-        <View style={[s.emptyState, { paddingBottom: 100 + insets.bottom }]}>
-          <View style={s.emptyIcon}>
-            <Ionicons name="search-outline" size={36} color="#C8C4E0" />
-          </View>
-          <AppText style={s.emptyTitle}>Ürün aramaya başlayın</AppText>
-          <AppText style={s.emptySubtitle}>
-            Kategori seçerek veya arama yaparak ürünleri listeleyebilirsiniz
-          </AppText>
-        </View>
-      ) : loading ? (
+      {loading ? (
         <View style={s.centered}>
           <ActivityIndicator size="large" color={P} />
         </View>
@@ -453,6 +448,65 @@ export default function ProductsScreen() {
                 </Pressable>
               </View>
 
+              {campaigns.length > 0 && (
+                <View style={fm.section}>
+                  <View style={fm.campaignHeader}>
+                    <AppText style={fm.sectionTitle}>Kampanyalar</AppText>
+                    <View style={fm.campaignCountBadge}>
+                      <Ionicons name="megaphone" size={11} color="#B45309" />
+                      <AppText style={fm.campaignCountText}>{campaigns.length}</AppText>
+                    </View>
+                  </View>
+                  <View style={fm.campaignList}>
+                    {campaigns.map((camp) => {
+                      const isSelected = selectedCampaignId === camp.id;
+                      const discountLabel =
+                        camp.discountValue != null && camp.discountValue > 0
+                          ? camp.discountType === 'PERCENT'
+                            ? `%${camp.discountValue}`
+                            : `${camp.discountValue.toLocaleString('tr-TR')} TL`
+                          : camp.campaignType === 'FREESHIPPING'
+                          ? 'Ücretsiz Kargo'
+                          : '—';
+                      return (
+                        <Pressable
+                          key={camp.id}
+                          style={[fm.campaignRow, isSelected && fm.campaignRowActive]}
+                          onPress={() => {
+                            if (isSelected) {
+                              setSelectedCampaignId(null);
+                              setSelectedCampaignName(null);
+                            } else {
+                              setSelectedCampaignId(camp.id);
+                              setSelectedCampaignName(camp.name);
+                            }
+                          }}
+                        >
+                          <View style={[fm.campaignDot, isSelected && fm.campaignDotActive]}>
+                            <Ionicons
+                              name="megaphone"
+                              size={14}
+                              color={isSelected ? '#fff' : '#F59E0B'}
+                            />
+                          </View>
+                          <View style={fm.campaignBody}>
+                            <AppText style={fm.campaignName} numberOfLines={1}>
+                              {camp.name}
+                            </AppText>
+                            <View style={fm.campaignMeta}>
+                              <AppText style={fm.campaignDiscount}>{discountLabel}</AppText>
+                              <View style={fm.campaignMetaDot} />
+                              <AppText style={fm.campaignProductMeta}>{camp.productCount} ürün</AppText>
+                            </View>
+                          </View>
+                          {isSelected && <Ionicons name="checkmark-circle" size={20} color={P} />}
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+
               {availableBrands.length > 0 && (
                 <View style={fm.section}>
                   <AppText style={fm.sectionTitle}>Marka ({availableBrands.length})</AppText>
@@ -491,6 +545,14 @@ export default function ProductsScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Kategori Drawer (soldan açılır, drill-down) */}
+      <CategoryDrawer
+        visible={categoryDrawerVisible}
+        categories={categories}
+        onClose={() => setCategoryDrawerVisible(false)}
+        onSelect={handleCategorySelect}
+      />
     </View>
   );
 }
@@ -526,7 +588,7 @@ const s = StyleSheet.create({
     fontFamily: Fonts.sans,
     padding: 0,
   },
-  filterBtn: {
+  iconBtn: {
     width: 44,
     height: 44,
     borderRadius: 14,
@@ -536,7 +598,7 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#F0EEFF',
   },
-  filterBtnActive: {
+  iconBtnActive: {
     backgroundColor: P,
     borderColor: P,
   },
@@ -557,39 +619,29 @@ const s = StyleSheet.create({
     fontWeight: '700',
   },
 
-  categoryScroll: {
-    flexGrow: 0,
-  },
-  categoryList: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 8,
-    alignItems: 'center',
-  },
-  categoryChip: {
+  activeCategoryBar: {
     flexDirection: 'row',
-    paddingHorizontal: 14,
-    height: 36,
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#F0EEFF',
-    marginRight: 4,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(141,115,255,0.1)',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginHorizontal: 12,
+    marginTop: 8,
+    gap: 8,
+  },
+  activeCategoryLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 6,
+    flex: 1,
   },
-  categoryChipActive: {
-    backgroundColor: P,
-    borderColor: P,
-  },
-  categoryChipText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#3D3660',
-  },
-  categoryChipTextActive: {
-    color: '#FFFFFF',
+  activeCategoryText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: P,
+    flex: 1,
   },
 
   resultRow: {
@@ -599,6 +651,30 @@ const s = StyleSheet.create({
   resultText: {
     fontSize: 12,
     color: '#9A96B5',
+  },
+  activeCampaignBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FEF3C7',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginHorizontal: 12,
+    marginVertical: 6,
+    gap: 8,
+  },
+  activeCampaignLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+  },
+  activeCampaignText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#B45309',
+    flex: 1,
   },
 
   productRow: {
@@ -640,6 +716,23 @@ const s = StyleSheet.create({
     paddingVertical: 1,
   },
   discountText: {
+    fontSize: 8,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  campaignBadge: {
+    position: 'absolute',
+    bottom: 4,
+    left: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    backgroundColor: '#F59E0B',
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+  },
+  campaignText: {
     fontSize: 8,
     fontWeight: '700',
     color: '#fff',
@@ -888,6 +981,86 @@ const fm = StyleSheet.create({
   },
   brandTextActive: {
     color: '#fff',
+  },
+
+  // ─── Modal: Kampanyalar ─────────────────────────────────────────────
+  campaignHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  campaignCountBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 10,
+    backgroundColor: '#FEF3C7',
+  },
+  campaignCountText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#B45309',
+  },
+  campaignList: {
+    gap: 8,
+  },
+  campaignRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#F0EEFF',
+    backgroundColor: '#FAFAFE',
+  },
+  campaignRowActive: {
+    borderColor: P,
+    backgroundColor: 'rgba(141,115,255,0.06)',
+  },
+  campaignDot: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FEF3C7',
+  },
+  campaignDotActive: {
+    backgroundColor: P,
+  },
+  campaignBody: {
+    flex: 1,
+    gap: 3,
+  },
+  campaignName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1C1631',
+  },
+  campaignMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  campaignDiscount: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#B45309',
+  },
+  campaignMetaDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: '#C8C4E0',
+  },
+  campaignProductMeta: {
+    fontSize: 11,
+    color: '#9A96B5',
+    fontWeight: '600',
   },
   footer: {
     flexDirection: 'row',

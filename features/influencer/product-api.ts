@@ -1,5 +1,24 @@
 import { api } from '@/lib/api';
 
+export type CampaignSummary = {
+  id: string;
+  name: string;
+  campaignType?: string;
+  isActive?: boolean | null;
+};
+
+export type CampaignUiDto = {
+  id: string;
+  name: string;
+  description: string;
+  campaignType: string; // DISCOUNT_OR_PERCENT | FREESHIPPING | COUPON | BUYXGETY
+  discountValue: number | null;
+  discountType: string; // PERCENT | FIXED_AMOUNT
+  campaignImage: string | null;
+  isActive: boolean | null;
+  productCount: number;
+};
+
 export type CatalogListingDto = {
   catalogId: string;
   name: string;
@@ -17,6 +36,27 @@ export type CatalogListingDto = {
   hasDiscount: boolean;
   bestVariantCode: string | null;
   tags: string[];
+  campaigns?: CampaignSummary[];
+};
+
+/** İndirimli/kampanyalı popüler ürünleri çeker — dashboard "Hemen Paylaş" bölümü için.
+ *  Backend CatalogSortOption: PRICE_ASC, PRICE_DESC, RECOMMENDED, POPULAR, NEW_ARRIVALS, DISCOUNT_DESC, TRENDING_SCORE
+ *  En yüksek indirim önce → influencer'ı en cazip ürünlere yönlendirir. */
+export async function fetchHotPicks(limit = 10): Promise<CatalogListingDto[]> {
+  const res = await fetchFilteredCatalogs({
+    hasDiscount: true,
+    sort: 'DISCOUNT_DESC',
+    page: 0,
+    size: limit,
+  });
+  return res?.products?.content ?? [];
+}
+
+export type GenderLabel = 'Kadın' | 'Erkek' | 'Unisex' | 'Genel' | string;
+
+export type GenderGroup = {
+  label: GenderLabel;
+  items: SubCategoryDto[];
 };
 
 export type CategoryDto = {
@@ -26,6 +66,7 @@ export type CategoryDto = {
   image: string | null;
   catalogCount: number;
   subCategories: SubCategoryDto[];
+  genderGroups?: GenderGroup[] | null;
 };
 
 export type SubCategoryDto = {
@@ -35,6 +76,7 @@ export type SubCategoryDto = {
   image: string | null;
   catalogCount: number;
   children: SubCategoryDto[];
+  genderLabel?: GenderLabel | null;
 };
 
 export type CatalogFilterResponse = {
@@ -71,6 +113,9 @@ export async function fetchFilteredCatalogs(params: {
   minPrice?: number;
   maxPrice?: number;
   hasDiscount?: boolean;
+  campaignId?: string;
+  /** Cinsiyet filtresi — backend variantAttributes.key=Cinsiyet&value={gender} olarak gönderilir. */
+  gender?: string;
   sort?: string;
   page?: number;
   size?: number;
@@ -87,12 +132,25 @@ export async function fetchFilteredCatalogs(params: {
   if (params.minPrice != null) query.set('minPrice', String(params.minPrice));
   if (params.maxPrice != null) query.set('maxPrice', String(params.maxPrice));
   if (params.hasDiscount != null) query.set('hasDiscount', String(params.hasDiscount));
+  if (params.campaignId) query.set('campaignId', params.campaignId);
+  if (params.gender) {
+    query.append('variantAttributes.key', 'Cinsiyet');
+    query.append('variantAttributes.value', params.gender);
+  }
   if (params.sort) query.set('sort', params.sort);
   query.set('page', String(params.page ?? 0));
   query.set('size', String(params.size ?? 20));
 
   const res = await api.get(`/catalog/filter-catalog?${query.toString()}`);
   return res.data as CatalogFilterResponse;
+}
+
+/** Aktif kampanyaları çeker — productCount > 0 ve isActive olanlar. */
+export async function fetchActiveCampaigns(limit = 20): Promise<CampaignUiDto[]> {
+  const res = await api.get(`/campaign?size=${limit}`);
+  const data = res.data;
+  const list: CampaignUiDto[] = Array.isArray(data) ? data : (data?.content ?? []);
+  return list.filter((c) => c.isActive !== false && c.productCount > 0);
 }
 
 export async function fetchCategories(): Promise<CategoryDto[]> {
@@ -160,14 +218,18 @@ export type CatalogDetailDto = {
 let detailCache = new Map<string, { data: CatalogDetailDto; ts: number }>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 dakika
 
-export async function fetchCatalogDetail(slug: string): Promise<CatalogDetailDto> {
-  const cached = detailCache.get(slug);
+export async function fetchCatalogDetail(slug: string, variantCode?: string | null): Promise<CatalogDetailDto> {
+  const cacheKey = variantCode ? `${slug}::${variantCode}` : slug;
+  const cached = detailCache.get(cacheKey);
   if (cached && Date.now() - cached.ts < CACHE_TTL) {
     return cached.data;
   }
-  const res = await api.get(`/catalog/detail/${slug}`);
+  const url = variantCode
+    ? `/catalog/detail/${slug}?variantCode=${encodeURIComponent(variantCode)}`
+    : `/catalog/detail/${slug}`;
+  const res = await api.get(url);
   const data = res.data as CatalogDetailDto;
-  detailCache.set(slug, { data, ts: Date.now() });
+  detailCache.set(cacheKey, { data, ts: Date.now() });
   // Cache'i 50 item ile sınırla
   if (detailCache.size > 50) {
     const oldest = detailCache.keys().next().value;

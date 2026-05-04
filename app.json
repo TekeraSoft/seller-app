@@ -2,7 +2,7 @@
   "expo": {
     "name": "Tekera21 Partner",
     "slug": "seller-app",
-    "version": "1.0.8",
+    "version": "1.0.9",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "sellerapp",
@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.tekerasoft.tekeramarketplace",
-      "version": "1.0.9",
+      "version": "1.0.10",
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,

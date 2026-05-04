@@ -22,7 +22,7 @@ import { resolvePublicAssetUrl } from '@/features/seller/mappers';
 
 const P = '#8D73FF';
 
-type FilterType = 'all' | 'expiring' | 'newest' | 'oldest';
+type FilterType = 'all' | 'expiring' | 'expired' | 'newest' | 'oldest';
 
 function timeLeft(dateStr: string): string {
   const diff = new Date(dateStr).getTime() - Date.now();
@@ -85,11 +85,19 @@ export default function LinksScreen() {
       case 'expiring':
         result = result.filter((l) => l.active && isExpiringSoon(l.expiresAt));
         break;
+      case 'expired':
+        result = result.filter((l) => new Date(l.secondExpiresAt).getTime() < Date.now());
+        break;
       case 'newest':
         result.sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
         break;
       case 'oldest':
         result.sort((a, b) => new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime());
+        break;
+      case 'all':
+      default:
+        // Tümü filtresinde süresi dolmuşları gizle (sadece active + period içinde)
+        result = result.filter((l) => new Date(l.secondExpiresAt).getTime() >= Date.now());
         break;
     }
 
@@ -134,7 +142,14 @@ export default function LinksScreen() {
     return (
       <Pressable
         style={[s.linkCard, expiring && s.linkCardExpiring]}
-        onPress={() => item.catalogSlug && router.push(`/product-detail/${item.catalogSlug}` as any)}
+        onPress={() =>
+          item.catalogSlug &&
+          router.push(
+            (item.variantCode
+              ? `/product-detail/${item.catalogSlug}?variantCode=${encodeURIComponent(item.variantCode)}`
+              : `/product-detail/${item.catalogSlug}`) as any
+          )
+        }
       >
         <View style={s.linkTop}>
           {/* Ürün görseli */}
@@ -210,8 +225,9 @@ export default function LinksScreen() {
       {/* Durum / Tarih filtreleri */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filterRow}>
         {([
-          { key: 'all', label: 'Tümü', icon: 'grid-outline' },
+          { key: 'all', label: 'Aktif', icon: 'grid-outline' },
           { key: 'expiring', label: 'Süresi Dolmak Üzere', icon: 'alert-circle-outline' },
+          { key: 'expired', label: 'Süresi Dolmuş', icon: 'time-outline' },
           { key: 'newest', label: 'En Yeni', icon: 'arrow-down-outline' },
           { key: 'oldest', label: 'En Eski', icon: 'arrow-up-outline' },
         ] as const).map((f) => (

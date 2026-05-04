@@ -170,6 +170,7 @@ export type InfluencerLinkDto = {
   catalogSlug: string | null;
   catalogImage: string | null;
   categoryName: string | null;
+  variantCode: string | null;
   uniqueCode: string;
   referralUrl: string;
   clickCount: number;
@@ -187,8 +188,13 @@ export type InfluencerDashboardDto = {
   totalConversions: number;
 };
 
-export async function createInfluencerLink(catalogId: string): Promise<InfluencerLinkDto> {
-  const res = await api.post<ApiResponse<InfluencerLinkDto>>(`/influencer/links?catalogId=${catalogId}`);
+export async function createInfluencerLink(
+  catalogId: string,
+  variantCode?: string | null
+): Promise<InfluencerLinkDto> {
+  const params = new URLSearchParams({ catalogId });
+  if (variantCode) params.set('variantCode', variantCode);
+  const res = await api.post<ApiResponse<InfluencerLinkDto>>(`/influencer/links?${params.toString()}`);
   if (!res.data?.data) throw new Error('Link oluşturulamadı');
   return res.data.data;
 }
@@ -339,4 +345,249 @@ export async function getEarningsSummary(status?: InfluencerCommissionStatus): P
     totalEarning: 0, pendingEarning: 0, readyEarning: 0, paidEarning: 0,
     cancelledEarning: 0, totalCount: 0, commissions: [],
   };
+}
+
+// ─── Insight (Aksiyon Önerileri) API ─────────────────────────────────────────
+
+export type InsightType =
+  | 'DEAD_LINK_WARNING'
+  | 'LINK_EXPIRING_SOON'
+  | 'GOAL_REMAINING_PUSH'
+  | 'COMMISSION_MATURING'
+  | 'VISITOR_DROP_ANOMALY';
+
+export type InsightSeverity = 'SUCCESS' | 'INFO' | 'WARNING' | 'CRITICAL';
+
+export type InfluencerInsightDto = {
+  type: InsightType;
+  severity: InsightSeverity;
+  title: string;
+  description: string;
+  icon: string;
+  actionLabel: string | null;
+  actionRoute: string | null;
+  metadata: Record<string, unknown>;
+};
+
+export async function getInfluencerInsights(): Promise<InfluencerInsightDto[]> {
+  const res = await api.get<ApiResponse<InfluencerInsightDto[]>>('/influencer/insights');
+  return res.data?.data ?? [];
+}
+
+// ─── Niş (Uzmanlık Alanı) API ───────────────────────────────────────────────
+
+export type InfluencerNicheCategoryDto = {
+  categoryId: number | null;
+  categoryName: string;
+  linkCount: number;
+  sharePercent: number;
+};
+
+export type InfluencerNicheDto = {
+  totalLinks: number;
+  distinctCategories: number;
+  dominantCategory: InfluencerNicheCategoryDto | null;
+  topCategories: InfluencerNicheCategoryDto[];
+};
+
+export async function getInfluencerProfileNiche(): Promise<InfluencerNicheDto> {
+  const res = await api.get<ApiResponse<InfluencerNicheDto>>('/influencer/profile-niche');
+  return (
+    res.data?.data ?? {
+      totalLinks: 0,
+      distinctCategories: 0,
+      dominantCategory: null,
+      topCategories: [],
+    }
+  );
+}
+
+// ─── Analytics API ───────────────────────────────────────────────────────────
+
+export type AnalyticsPeriod = '7d' | '30d' | '90d' | 'all';
+
+export type InfluencerAnalyticsOverviewDto = {
+  period: string;
+  activeLinks: number;
+  visitors: number;
+  conversions: number;
+  earning: number;
+  conversionRate: number;
+  earningPerVisitor: number;
+  previousVisitors: number;
+  previousConversions: number;
+  previousEarning: number;
+  visitorsChangePercent: number | null;
+  conversionsChangePercent: number | null;
+  earningChangePercent: number | null;
+};
+
+export type InfluencerTimeseriesPoint = {
+  date: string;
+  visitors: number;
+  conversions: number;
+  earning: number;
+};
+
+export type InfluencerTimeseriesDto = {
+  period: string;
+  points: InfluencerTimeseriesPoint[];
+};
+
+export type InfluencerFunnelDto = {
+  period: string;
+  visitors: number;
+  conversions: number;
+  conversionRate: number;
+};
+
+export type InfluencerTopLinkDto = {
+  linkId: string;
+  uniqueCode: string;
+  productName: string | null;
+  productSlug: string | null;
+  productImage: string | null;
+  variantCode: string | null;
+  visitors: number;
+  conversions: number;
+  earning: number;
+  conversionRate: number;
+  active: boolean;
+  expiresAt: string | null;
+};
+
+export type InfluencerCategoryBreakdownEntry = {
+  categoryId: string | null;
+  categoryName: string;
+  conversions: number;
+  earning: number;
+  sharePercent: number;
+};
+
+export type InfluencerCategoryBreakdownDto = {
+  period: string;
+  totalEarning: number;
+  entries: InfluencerCategoryBreakdownEntry[];
+};
+
+export type InfluencerHeatmapCell = {
+  dayOfWeek: number;
+  hour: number;
+  visitors: number;
+};
+
+export type InfluencerHeatmapDto = {
+  period: string;
+  cells: InfluencerHeatmapCell[];
+  maxValue: number;
+  peakDayOfWeek: number | null;
+  peakHour: number | null;
+};
+
+export type InfluencerEarningsProjectionDto = {
+  pendingEarning: number;
+  readyEarning: number;
+  paidEarning: number;
+  totalProjected: number;
+  expiringWithin7DaysAmount: number;
+  expiringWithin7DaysCount: number;
+  averageDaysUntilReady: number | null;
+};
+
+export type InfluencerLinkAnalyticsDto = {
+  linkId: string;
+  uniqueCode: string;
+  referralUrl: string;
+  productName: string | null;
+  productSlug: string | null;
+  productImage: string | null;
+  categoryName: string | null;
+  active: boolean;
+  createdAt: string | null;
+  expiresAt: string;
+  secondExpiresAt: string;
+  period: string;
+  totalClicks: number;
+  totalVisitors: number;
+  totalConversions: number;
+  periodVisitors: number;
+  periodConversions: number;
+  periodEarning: number;
+  conversionRate: number;
+  daysUntilExpiry: number | null;
+  timeseries: InfluencerTimeseriesPoint[];
+};
+
+const periodQuery = (p?: AnalyticsPeriod) => (p ? `?period=${p}` : '');
+
+export async function getInfluencerOverview(period?: AnalyticsPeriod): Promise<InfluencerAnalyticsOverviewDto> {
+  const res = await api.get<ApiResponse<InfluencerAnalyticsOverviewDto>>(`/influencer/analytics/overview${periodQuery(period)}`);
+  return res.data?.data ?? {
+    period: period ?? '30d',
+    activeLinks: 0, visitors: 0, conversions: 0, earning: 0,
+    conversionRate: 0, earningPerVisitor: 0,
+    previousVisitors: 0, previousConversions: 0, previousEarning: 0,
+    visitorsChangePercent: null, conversionsChangePercent: null, earningChangePercent: null,
+  };
+}
+
+export async function getInfluencerTimeseries(period?: AnalyticsPeriod): Promise<InfluencerTimeseriesDto> {
+  const res = await api.get<ApiResponse<InfluencerTimeseriesDto>>(`/influencer/analytics/timeseries${periodQuery(period)}`);
+  return res.data?.data ?? { period: period ?? '30d', points: [] };
+}
+
+export async function getInfluencerFunnel(period?: AnalyticsPeriod): Promise<InfluencerFunnelDto> {
+  const res = await api.get<ApiResponse<InfluencerFunnelDto>>(`/influencer/analytics/funnel${periodQuery(period)}`);
+  return res.data?.data ?? { period: period ?? '30d', visitors: 0, conversions: 0, conversionRate: 0 };
+}
+
+export async function getInfluencerTopLinks(period?: AnalyticsPeriod, limit = 5): Promise<InfluencerTopLinkDto[]> {
+  const sep = period ? '&' : '?';
+  const res = await api.get<ApiResponse<InfluencerTopLinkDto[]>>(
+    `/influencer/analytics/top-links${periodQuery(period)}${sep}limit=${limit}`
+  );
+  return res.data?.data ?? [];
+}
+
+export async function getInfluencerCategoryBreakdown(period?: AnalyticsPeriod): Promise<InfluencerCategoryBreakdownDto> {
+  const res = await api.get<ApiResponse<InfluencerCategoryBreakdownDto>>(`/influencer/analytics/category-breakdown${periodQuery(period)}`);
+  return res.data?.data ?? { period: period ?? '30d', totalEarning: 0, entries: [] };
+}
+
+export async function getInfluencerHeatmap(period?: AnalyticsPeriod): Promise<InfluencerHeatmapDto> {
+  const res = await api.get<ApiResponse<InfluencerHeatmapDto>>(`/influencer/analytics/heatmap${periodQuery(period)}`);
+  return res.data?.data ?? { period: period ?? '30d', cells: [], maxValue: 0, peakDayOfWeek: null, peakHour: null };
+}
+
+export async function getInfluencerEarningsProjection(): Promise<InfluencerEarningsProjectionDto> {
+  const res = await api.get<ApiResponse<InfluencerEarningsProjectionDto>>('/influencer/analytics/earnings-projection');
+  return res.data?.data ?? {
+    pendingEarning: 0, readyEarning: 0, paidEarning: 0, totalProjected: 0,
+    expiringWithin7DaysAmount: 0, expiringWithin7DaysCount: 0, averageDaysUntilReady: null,
+  };
+}
+
+export async function getInfluencerLinkAnalytics(linkId: string, period?: AnalyticsPeriod): Promise<InfluencerLinkAnalyticsDto> {
+  const res = await api.get<ApiResponse<InfluencerLinkAnalyticsDto>>(`/influencer/links/${linkId}/analytics${periodQuery(period)}`);
+  if (!res.data?.data) throw new Error('Link analitiği alınamadı');
+  return res.data.data;
+}
+
+// ─── Sana Özel Öneriler API ─────────────────────────────────────────────────
+
+export type InfluencerRecommendationsDto = {
+  dominantCategoryName: string | null;
+  products: import('@/features/influencer/product-api').CatalogListingDto[];
+};
+
+export async function getInfluencerRecommendations(limit = 10): Promise<InfluencerRecommendationsDto> {
+  const res = await api.get<ApiResponse<InfluencerRecommendationsDto>>(
+    `/influencer/recommendations?limit=${limit}`
+  );
+  return (
+    res.data?.data ?? {
+      dominantCategoryName: null,
+      products: [],
+    }
+  );
 }
